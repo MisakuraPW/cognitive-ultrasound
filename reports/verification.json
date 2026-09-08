@@ -28,6 +28,10 @@
     "tf_trained_fp32_and_amp_presets_reload_in_jax": "passed; finite float32 output",
     "echonet_segmentation_and_scan_conversion": "passed; synthetic identical-input Dice=1, not medical accuracy",
     "licensed_echonet_data": "not available locally",
-    "full_gpu_training_and_paper_metrics": "not run"
+    "full_gpu_training_and_paper_metrics": "not run",
+    "automated_tests": "22 passed",
+    "static_analysis": "ruff passed",
+    "dependency_consistency": "pip check: no broken requirements",
+    "official_training_dataloader": "passed; zea-generated synthetic HDF5 -> shape (1,112,112,3), time order and normalization checked"
   }
 }
