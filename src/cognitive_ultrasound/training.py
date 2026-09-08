@@ -2,6 +2,7 @@
 
 import json
 import os
+from time import perf_counter
 from types import MethodType
 
 from .config import path
@@ -66,6 +67,9 @@ def train(cfg, resume=False, smoke=False):
     for key in ("batch_size", "epochs", "steps_per_epoch", "validation_steps"):
         if type(cfg[key]) is not int or cfg[key] < 1:
             raise ValueError(f"{key} must be a positive integer")
+    save_every = cfg.get("save_weights_every", 1)
+    if type(save_every) is not int or save_every < 1:
+        raise ValueError("save_weights_every must be a positive integer")
     if not smoke and not tf.config.list_physical_devices("GPU"):
         raise RuntimeError(
             "Training requires a GPU; use --smoke only for a small synthetic CPU test"
@@ -170,16 +174,38 @@ def train(cfg, resume=False, smoke=False):
     initial_epoch = int(epoch_var.numpy())
 
     class Save(keras.callbacks.Callback):
+        def on_epoch_begin(self, epoch, logs=None):
+            self.epoch_start = perf_counter()
+            self.step_times = []
+
+        def on_train_batch_begin(self, batch, logs=None):
+            self.batch_start = perf_counter()
+
+        def on_train_batch_end(self, batch, logs=None):
+            self.step_times.append(perf_counter() - self.batch_start)
+
         def on_epoch_end(self, epoch, logs=None):
             epoch_var.assign(epoch + 1)
             manager.save(checkpoint_number=epoch + 1)
-            self.model.save_weights(output / f"epoch_{epoch + 1:04d}.weights.h5")
+            if (epoch + 1) % save_every == 0 or epoch + 1 == epochs:
+                self.model.save_weights(output / f"epoch_{epoch + 1:04d}.weights.h5")
             self.model.save_to_preset(str(output / "hub"))
             if cfg["precision"] == "mixed_float16":
                 preset_file = output / "hub/config.json"
                 preset = json.loads(preset_file.read_text(encoding="utf-8"))
                 preset["config"]["dtype"] = "float32"
                 write_json(preset_file, preset)
+            write_json(
+                output / "timing" / f"epoch_{epoch + 1:04d}.json",
+                {
+                    "epoch": epoch + 1,
+                    "steps": len(self.step_times),
+                    "batch_wall_s": self.step_times,
+                    "epoch_wall_s": perf_counter() - self.epoch_start,
+                    "includes": "epoch wall includes validation and checkpoint export; excludes initial data audit/model build",
+                    "synthetic_smoke": smoke,
+                },
+            )
 
     callbacks = [
         Save(),

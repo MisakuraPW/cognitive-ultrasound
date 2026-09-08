@@ -8,6 +8,7 @@
 - `docs/diffusion_training.md`：训练目标、参数、AMP、断点语义。
 - `docs/git_workflow.md`：本地 Git 配置位置、创建空远程仓库和关联步骤。
 - `docs/autodl_preparation.md`：复用已有云端 EchoNet、只读检查、独立路径与后续运行顺序。
+- **`docs/autodl_runbook.md`：当前推荐入口，从开实例、安装 requirement.txt 到完整评估、可选训练和下载结果。**
 - `docs/reproduction_protocol.md`：数据划分、指标、预算、计时及验收标准。
 - `reports/CASL_reproduction_report.md`：目前完成程度与尚未运行的项目。
 - `reports/environment.md`：实际本地环境；不是 RTX 4090 报告。
@@ -57,9 +58,11 @@ python scripts/bootstrap.py
 
 ## 环境文件
 
+针对当前 PyTorch / Ubuntu 22.04 / CUDA 12.8 基础镜像，优先按 `docs/autodl_runbook.md` 创建 Python 3.10 环境，先运行 `python scripts/bootstrap.py`，再从仓库根目录执行 `python -m pip install -r requirement.txt`。该入口复用系统 CUDA/cuDNN，不下载 NVIDIA 运行库；`requirements.txt` 为同一入口的别名。安装后必须通过 `scripts/check_gpu.py` 的 JAX/TF 实际 GPU 计算检查。
+
 正式计算目标为 **Linux + Python 3.10/3.11 + NVIDIA GPU**。官方为 Keras：JAX 推理，TensorFlow 训练；不是 PyTorch 重实现。
 
-`requirements/inference.txt` 与 `requirements/training.txt` 给出分开的 GPU 环境起点；`requirements/segmentation.txt` 在推理环境加入官方 TensorFlow→JAX 分割桥。它们固定主要计算库，但不是已在 AutoDL 验证的完整 lock。安装后必须 `pip check`、`doctor`，记录实际解析版本和 GPU 可见性。云端镜像、驱动、安装和运行安排留待下一阶段。
+`requirements/inference.txt` 与 `requirements/training.txt` 是此前通过 pip 安装 CUDA 运行库的可选方案；当前用户选择复用系统 CUDA，**不要与根目录 requirement.txt 混用**。根目录入口已包含分割桥，不需再安装 segmentation.txt。这些文件固定主要计算库，但不是已在 AutoDL 验证的完整 lock；记录实际解析版本与 GPU 检查结果。
 
 ## 数据与权重准备入口
 
@@ -74,6 +77,8 @@ casl-repro audit-data
 官方 train/val/test 患者清单已经放在 `configs/splits/split.yaml`，不是 EchoNet 原始 FileList.csv 的划分。转换复用官方筛选、分割扇形和 cubic 极坐标插值；不能直接把原 AVI 的笛卡尔列当作 112 条扫描线。
 
 ## 运行顺序（留待真实数据/云端）
+
+以下是通用接口示例。当前 AutoDL 全流程请使用 `docs/autodl_runbook.md` 和 `configs/autodl/paper.yaml`，避免默认全轨迹输出占满磁盘；该配置保留论文五个主要预算及全部病例/指标，另有命令补充 56/112 预算。
 
 先用验证集的一个案例检查官方权重推理：
 

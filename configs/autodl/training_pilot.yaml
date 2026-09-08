@@ -1,0 +1,5 @@
+# Real-data throughput check. Never use this checkpoint as a completed reproduction.
+extends: training.yaml
+epochs: 2
+steps_per_epoch: 100
+output: /root/autodl-tmp/outputs_casl/training_pilot

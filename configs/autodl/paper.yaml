@@ -1,0 +1,8 @@
+# Core EchoNet reproduction, using the five budgets in the official paper scripts.
+# No full posterior archive: retain all per-frame metrics and patient completion records.
+extends: evaluation.yaml
+budgets: [2, 4, 7, 14, 28]
+segmentation: true
+save_trajectory: false
+visualize_every: 0
+output: /root/autodl-tmp/outputs_casl/paper_pretrained

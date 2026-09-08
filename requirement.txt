@@ -1,0 +1,17 @@
+# AutoDL Linux x86_64, Python 3.10. Run from the repository root.
+# First: python scripts/bootstrap.py
+# Uses existing system CUDA/cuDNN; does NOT request NVIDIA CUDA runtime wheels.
+# Both backends are installed together, but training/inference run in separate processes.
+keras==3.12.4
+jax[cuda12-local]==0.6.2
+jaxlib==0.6.2
+tensorflow==2.20.0
+tf2jax==0.3.7
+numpy==2.2.4
+scipy==1.15.3
+h5py==3.16.0
+scikit-image==0.25.2
+rich>=13
+-e ./vendor/casl/zea
+-e ./vendor/casl
+-e .[test]

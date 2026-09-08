@@ -102,6 +102,7 @@ def evaluate(cfg, resume=False):
                     loop.step(frame)
                 warmup = perf_counter() - start
                 loop.reset(seed)
+                case_start = perf_counter()
                 rows, reference_masks = [], []
                 for index, frame in enumerate(frames):
                     state, timing = loop.step(frame)
@@ -141,6 +142,8 @@ def evaluate(cfg, resume=False):
                     {
                         "frames": len(rows),
                         "warmup_compile_s": warmup,
+                        "case_wall_s": perf_counter() - case_start,
+                        "case_wall_includes": "frame loop, metrics, optional segmentation, visualization, trajectory and frames.csv; excludes warmup/model load/input audit",
                         "short_sequence": len(rows) < cfg["frames"],
                         "segmentation_excluded": segmentation_failure(reference_masks)
                         if segmentation

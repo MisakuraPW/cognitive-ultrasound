@@ -1,5 +1,7 @@
 # AutoDL：复用已有 EchoNet 的准备方案
 
+**2026-09-09 更新：当前系统 CUDA 安装方式、完整运行与下载命令以 [完整操作指南](autodl_runbook.md) 为准。**本页保留初始数据交接背景；第 3–5 节旧的分环境安装命令已由根目录 `requirement.txt` 的方案取代，不能混用。
+
 目前已完成本地准备和个人 GitHub 仓库首次推送，未连接服务器、租用算力、创建云端目录或启动实验。下列命令供你确定实例后使用。
 
 依据：用户提供的 `G:/SRTP/MAE/docs/autodl_echonet_shared_data_handoff.md`（2026-09-08），SHA256 为 `959ee3ba1df3dbe4c4ad5ff3a058f8a5770bbab0373b5bb287a1eaac61a49943`。交接文档描述历史事实和路径约定，不是本次服务器检查结果；其中 EchoRVM 的仓库、环境和训练命令不作为本项目操作指令。

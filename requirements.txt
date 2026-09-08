@@ -1,0 +1,2 @@
+# Conventional alias for the user-requested singular filename.
+-r requirement.txt

@@ -1,0 +1,6 @@
+# Timing/compatibility pilot on validation data; not a test-set result.
+extends: paper.yaml
+split: val
+limit_cases: 2
+frames: 100
+output: /root/autodl-tmp/outputs_casl/pilot

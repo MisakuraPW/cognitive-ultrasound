@@ -2,3 +2,5 @@ extends: ../training.yaml
 train_folder: /root/autodl-tmp/datasets/CASL-EchoNet-polar/train
 val_folder: /root/autodl-tmp/datasets/CASL-EchoNet-polar/val
 output: /root/autodl-tmp/outputs_casl/training_fp32
+# Keep 3 resumable checkpoints and the latest hub every epoch; archive every 50 epochs.
+save_weights_every: 50

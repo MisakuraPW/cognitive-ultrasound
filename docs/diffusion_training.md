@@ -16,6 +16,8 @@ cosine 信号/噪声 schedule 的 min/max signal rate 为 0.02/0.95。网络 wid
 
 每个完整 epoch 保存网络权重、EMA、AdamW 优化器状态、epoch 计数；同时导出 `hub/config.json` 与 `hub/model.weights.h5`，可直接交给同一个 CASL 推理适配器。TensorBoard 与 CSV 在运行目录的 logs 中，无需 W&B 账号。
 
+`save_weights_every` 控制独立 epoch 权重归档间隔，省略时保留每 epoch 归档；AutoDL 配置设为 50，最后一个 epoch 也归档。每个 epoch 的最新 hub 和最近 3 个优化器恢复点仍照常保存。`timing/epoch_*.json` 记录逐步墙钟时间和含验证/保存的 epoch 时间，可用真实数据 pilot 外推预算；不将合成 smoke 用作训练速度估计。
+
 `--resume` 要求配置和 split hash 相同；中断时恢复上一个完成的 epoch。恢复优化器不等于逐位重现不中断的随机流：数据迭代位置和全局随机流重新初始化，该限制写入 manifest。正式复现应从固定 seed 完整训练并保留依赖锁、日志及数据哈希。
 
 完整训练仅允许检测到 TensorFlow GPU 后启动。`--smoke` 使用合成数据、一个训练步与一个验证步，是工程验收；不会加载 EchoNet，也不证明训练收敛或达到论文水平。
