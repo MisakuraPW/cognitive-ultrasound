@@ -32,7 +32,7 @@ cognitive-ultrasound/
   data/ checkpoints/ logs/ results/  本地大文件，Git 忽略
 ```
 
-相邻的 `../CASL/casl` 是你原先下载的仓库，保持原样。你自己的 Git 仓库是本目录；子模块固定 CASL `5f57aba...` 和 zea `192c0bb...`。未设置你个人项目的远程 `origin`，因为尚未提供远程仓库地址；没有推送任何内容。
+相邻的 `../CASL/casl` 是你原先下载的仓库，保持原样。你自己的 Git 仓库是本目录；子模块固定 CASL `5f57aba...` 和 zea `192c0bb...`。个人远程 `origin` 已关联 [MisakuraPW/cognitive-ultrasound](https://github.com/MisakuraPW/cognitive-ultrasound)，`main` 已推送并跟踪 `origin/main`。数据、模型与本地环境不随 Git 上传。
 
 ## 本地检查
 

@@ -4,6 +4,12 @@
 
 原始 EchoNet 为已成像 B-mode 视频，不是 RF/channel data。官方从 scan-converted 图像回到 polar，并排除几何不一致病例；本复现以该模拟 measurement model 为范围。不能据此证明真实设备采集帧率或声学性能。
 
+EchoNet 本身已经有 train/val/test 划分，由 `FileList.csv` 的 `Split` 列指定，[EchoNet 官方加载器](https://github.com/echonet/dynamic/blob/master/echonet/datasets/echo.py) 直接读取该列。CASL 没有沿用这个分组：[论文 IV-A](https://arxiv.org/html/2508.08782v2#S4.SS1) 说明先排除无法一致转换为极坐标的扫描几何，再对剩余视频按患者重新划分为 6985/500/500；[官方代码说明](https://github.com/tue-bmd/casl#dataset) 提供作者使用的固定清单。本项目下载并固定作者清单，不自行重新随机分组。
+
+保持该划分是为了匹配论文评测和官方先验训练集。若改用 EchoNet 原始 test 配合 CASL 预训练模型，其中某些病例可能已经属于 CASL train，需核对 ID 交集后才能声称未见病例测试。当前没有真实 FileList.csv，不能给出交集数量；云端 preflight 会输出交叉计数。以后在标准 EchoNet 协议上比较方法，应另设实验、核实或重新训练先验，让所有对比方法使用相同划分。
+
+论文写排除 2044 段，而 EchoNet 总数 10030 与 CASL 清单合计 7985 相差 2045；这里不猜测一例差异的原因，以发布的逐病例清单与实际输入核验为准，不用总数相减生成名单。
+
 固定 Hugging Face 划分 revision `534aa314fe5a54912483b7cab936ec023f934d10`：
 
 | Split | 视频 | 官方清单帧数 | 少于 100 帧的视频 |

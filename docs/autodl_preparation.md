@@ -1,6 +1,6 @@
 # AutoDL：复用已有 EchoNet 的准备方案
 
-本次只完成本地准备，未连接服务器、租用算力、创建云端目录或启动实验。下列命令供你确定实例并关联个人远程仓库后使用。
+目前已完成本地准备和个人 GitHub 仓库首次推送，未连接服务器、租用算力、创建云端目录或启动实验。下列命令供你确定实例后使用。
 
 依据：用户提供的 `G:/SRTP/MAE/docs/autodl_echonet_shared_data_handoff.md`（2026-09-08），SHA256 为 `959ee3ba1df3dbe4c4ad5ff3a058f8a5770bbab0373b5bb287a1eaac61a49943`。交接文档描述历史事实和路径约定，不是本次服务器检查结果；其中 EchoRVM 的仓库、环境和训练命令不作为本项目操作指令。
 
@@ -30,7 +30,7 @@
 
 ## 3. 上云后的首次只读检查
 
-先按 [Git 工作方式](git_workflow.md) 关联并推送自己的空远程仓库。之后在 Linux 上将它克隆到上述 CASL 代码目录；不要克隆 EchoRVM 作为本项目。以下命令假定目录已就绪，从项目根目录执行：
+个人远程仓库已就绪，见 [Git 工作方式](git_workflow.md)。之后在 Linux 上克隆 `https://github.com/MisakuraPW/cognitive-ultrasound.git` 到上述 CASL 代码目录。以下命令假定目录已就绪，从项目根目录执行：
 
 ```bash
 cd /root/autodl-tmp/cognitive-ultrasound
@@ -110,4 +110,4 @@ casl-repro evaluate --config configs/autodl/evaluation.yaml --checkpoint /root/a
 
 备份前确认 `/root/autodl-fs` 实际挂载。保存 Git commit、完整配置、manifest、环境报告及 resolved 依赖、评估 CSV/图像/报告；训练保留整个训练输出目录，只有 `hub` 不能恢复优化器训练状态。完整轨迹体积大，可按实验打包后备份至项目专用备份目录，校验哈希再考虑后续磁盘管理。数据、模型、凭据、完整实验产物不进 Git。
 
-本次已在 Windows 用合成文件清单验证路径保护、CSV/AVI 核对、旧缓存不回退替代、只读行为及配置继承；这不表示检查过真实云端数据。远程仓库地址、实例连接信息和真实 preflight 报告留待上云阶段补齐。
+本次已在 Windows 用合成文件清单验证路径保护、CSV/AVI 核对、旧缓存不回退替代、只读行为及配置继承；这不表示检查过真实云端数据。个人远程仓库已关联并推送；实例连接信息和真实 preflight 报告留待上云阶段补齐。
