@@ -1,6 +1,39 @@
 # AutoDL 完整操作指南：CASL 的 EchoNet 复现
 
-更新：2026-09-09。本指南中的云端命令尚未在你的新实例执行。按顺序分段运行，上一段报错就先排查，不继续长作业。路径沿用已有 EchoNet 交接约定，不修改 EchoRVM、旧缓存或共享原始数据。
+更新：2026-09-09。用户提供的实例日志已显示 JAX 和 TensorFlow GPU 卷积检查通过；全量数据转换、正式训练与评估尚待云端执行。路径沿用已有 EchoNet 交接约定，不修改 EchoRVM、旧缓存或共享原始数据。
+
+## 已安装好环境：一次启动全流程
+
+已完成安装并通过 GPU 检查时，直接在实例终端执行下面这段。不必重复创建环境、安装包或启动 tmux：
+
+```bash
+source /root/miniconda3/etc/profile.d/conda.sh &&
+conda activate casl &&
+cd /root/autodl-tmp/cognitive-ultrasound &&
+git pull --ff-only &&
+python scripts/autodl_overnight.py --start --with-training
+```
+
+看到 `Started PID ...` 表示后台进程已启动，可以断开 SSH。脚本依次执行 GPU/输入检查、获取权重、全量转换、完整数据审计、演示、评估 pilot 与耗时估算、官方权重正式评估、训练 pilot 与耗时估算、正式训练、自训练权重正式评估、打包。每一步成功才继续下一步，任何一步报错就记录失败并停止；无需手工接下一阶段。固定 `OMP_NUM_THREADS=8`，处理当前日志中的无效线程数警告。
+
+**默认不自动关机。**如希望全流程完成或报错后自动关闭实例，在启动命令末尾加 `--shutdown-on-exit`；这会调用 AutoDL 的 `/usr/bin/shutdown`，也可能在早期检查失败时关机。它不释放实例。未加此参数时，流程结束后实例仍在运行，需要自行在控制台关机。强制杀进程、系统崩溃等不能保证执行自动关机。
+
+全新转换要求派生数据所在盘至少 **180 GiB 可用空间**，否则在转换前停止；推荐数据盘总容量 300GB。这是保守启动门槛，不是压缩后大小保证。非空 polar 目录会直接完整审计，绝不自动覆盖或删除；如果上次只转换了一部分，会停止等待处理，不能当作已完成数据继续训练。
+
+正式训练沿用 `500 epochs × 10000 steps`（500 万更新）的当前配置，pilot 不会替代正式训练，也不会根据耗时自动缩短预算。该预算仍不是已核实的论文总训练步数。全流程可能运行多天，估时文件保存在 `outputs_casl/preparation/evaluation-eta.json` 和 `training-eta.json`，生成后可查看。
+
+启动后或次日登录实例时，查看状态与最近日志：
+
+```bash
+cat /root/autodl-tmp/outputs_casl/overnight/status.json
+tail -n 60 /root/autodl-tmp/outputs_casl/overnight/run.log
+```
+
+`status=running` 时 `stage` 是当前阶段，`completed` 表示全部成功，`failed` 表示停止；将状态和日志末尾发回来即可定位。脚本有重复启动锁，已有流程运行时拒绝再开一份。修复失败原因后可重跑同一启动命令：评估按已完成病例恢复；训练有 manifest 时请求恢复完整 epoch 检查点，若尚无检查点则明确报错，不会静默重训。
+
+全部成功后，结果包和单独的训练恢复包位于 `/root/autodl-tmp/casl_exports/`，同时生成 SHA256 和清单。`status.json` 记录实际包名。结果包默认不含模型和全量轨迹，训练包含 hub 与 resume；原始数据和转换后的 HDF5 不打包。后台日志和最终状态应以 `overnight/` 中的原文件为准，包内快照采集于打包时。按第 10 节下载，但将远端路径改为这里的 `casl_exports`。下载、校验或另行备份前不要释放实例。
+
+以下分段指令仍可用于首次配置和人工排查；不要与已启动的后台流程同时运行。
 
 ## 0. 这次“完整复现”做到什么程度
 
