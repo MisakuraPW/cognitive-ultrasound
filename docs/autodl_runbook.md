@@ -49,12 +49,16 @@ source /root/miniconda3/etc/profile.d/conda.sh
 conda create -n casl python=3.10 -y
 conda activate casl
 cd /root/autodl-tmp/cognitive-ultrasound
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip --index-url https://pypi.org/simple
 python -m pip install -r requirement.txt
 python -m pip check
 ```
 
 根目录的 `requirements.txt` 是同一入口的别名，任选其一，不必安装两遍。训练和推理共用这一环境的 Python 包，**每个命令是独立进程**，代码在导入 Keras 前选择后端；不要在同一 Notebook 内来回切换后端。GPU 训练和评估也不要同时运行。
+
+依赖文件现在显式使用官方 `https://pypi.org/simple`，同时用于临时构建依赖，不修改机器全局 pip 配置。首个实例日志显示默认阿里云 HTTP 源找不到 zea 所需的 `poetry-core`，而官方 PyPI 可下载。手动把 poetry-core 装进 casl 环境不能解决原错误：pip 默认在独立的临时环境中再次安装构建依赖。[pip 构建隔离说明](https://pip.pypa.io/en/stable/reference/build-system/#build-isolation)
+
+如果此前安装失败，保留已有环境，在项目目录 `git pull --ff-only` 后重新安装即可。不必重新克隆、创建环境或关闭构建隔离。**安装命令失败后出现 `No broken requirements found` 只说明已经安装的包没有声明冲突，不代表 requirement.txt 已安装成功。**重新安装成功后再执行 GPU 检查。
 
 此入口固定主要数值库，使用 `jax[cuda12-local]==0.6.2`、普通 `tensorflow==2.20.0` 和 `tf2jax==0.3.7`，不请求 NVIDIA CUDA/cuDNN pip wheels。它安装 Python 包及 JAX GPU 插件，**不会安装 NVIDIA 驱动或替你补齐系统 CUDA/cuDNN**。这不是已在新镜像验证的完整依赖 lock；完成安装后保存实际 freeze。
 

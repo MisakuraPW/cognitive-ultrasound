@@ -2,6 +2,9 @@
 # First: python scripts/bootstrap.py
 # Uses existing system CUDA/cuDNN; does NOT request NVIDIA CUDA runtime wheels.
 # Both backends are installed together, but training/inference run in separate processes.
+# Also applies to isolated build dependencies (e.g. zea's poetry-core).
+# The instance's default Aliyun index failed to provide poetry-core; PyPI was reachable.
+--index-url https://pypi.org/simple
 keras==3.12.4
 jax[cuda12-local]==0.6.2
 jaxlib==0.6.2
