@@ -1,0 +1,20 @@
+# Paths are conventions from the handoff, not remotely verified facts.
+raw_root: /root/autodl-fs/datasets/EchoNet-Dynamic
+legacy_cache_roots:
+  - /root/autodl-tmp/datasets/EchoNet-Dynamic
+  - /root/autodl-tmp/datasets/EchoNet-Dynamic-rgb
+protected_project_roots:
+  - /root/autodl-tmp/EchoRVM
+  - /root/autodl-tmp/MAE/EchoRVM
+protected_output_roots:
+  - /root/autodl-tmp/outputs
+  - /root/autodl-tmp/outputs_downstream
+  - /root/autodl-tmp/outputs_representation_full
+  - /root/autodl-tmp/outputs_temporal
+code_root: /root/autodl-tmp/cognitive-ultrasound
+polar_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+output_root: /root/autodl-tmp/outputs_casl
+backup_root: /root/autodl-fs/projects/cognitive-ultrasound
+split_manifest: configs/splits/split.yaml
+# Full trajectory output is much larger than sparse measurements; inspect free space.
+# No fixed capacity threshold is inferred from the previous instance.

@@ -6,6 +6,8 @@
 
 - `docs/CASL_architecture.md`：论文、上游代码、执行计划的对应关系与必要纠正。
 - `docs/diffusion_training.md`：训练目标、参数、AMP、断点语义。
+- `docs/git_workflow.md`：本地 Git 配置位置、创建空远程仓库和关联步骤。
+- `docs/autodl_preparation.md`：复用已有云端 EchoNet、只读检查、独立路径与后续运行顺序。
 - `docs/reproduction_protocol.md`：数据划分、指标、预算、计时及验收标准。
 - `reports/CASL_reproduction_report.md`：目前完成程度与尚未运行的项目。
 - `reports/environment.md`：实际本地环境；不是 RTX 4090 报告。
@@ -61,7 +63,7 @@ python scripts/bootstrap.py
 
 ## 数据与权重准备入口
 
-需先自行取得具有访问权限的 EchoNet-Dynamic 原始数据，目录包含 `Videos/*.avi`。本项目不提供医学视频。
+你已有 AutoDL EchoNet 数据可继续使用，先核实共享目录中的 `Videos/*.avi`。已按交接文档准备 `configs/autodl/` 与 `scripts/autodl_preflight.py`；它们尚未在服务器执行。旧 MAE NPY 缓存不直接作为 CASL 极坐标输入。本项目不提供医学视频。
 
 ```bash
 casl-repro fetch-assets --with-evaluation

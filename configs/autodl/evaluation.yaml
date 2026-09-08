@@ -1,0 +1,5 @@
+extends: ../baseline.yaml
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+checkpoint: /root/autodl-tmp/cognitive-ultrasound/checkpoints/official
+evaluation_checkpoints: /root/autodl-tmp/cognitive-ultrasound/checkpoints/evaluation
+output: /root/autodl-tmp/outputs_casl/pretrained_baseline

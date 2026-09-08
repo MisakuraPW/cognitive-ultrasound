@@ -1,0 +1,4 @@
+extends: ../training.yaml
+train_folder: /root/autodl-tmp/datasets/CASL-EchoNet-polar/train
+val_folder: /root/autodl-tmp/datasets/CASL-EchoNet-polar/val
+output: /root/autodl-tmp/outputs_casl/training_fp32

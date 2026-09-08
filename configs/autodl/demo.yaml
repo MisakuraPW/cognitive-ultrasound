@@ -1,0 +1,8 @@
+extends: evaluation.yaml
+split: val
+limit_cases: 1
+frames: 5
+methods: [casl]
+budgets: [7]
+visualize_every: 1
+output: /root/autodl-tmp/outputs_casl/pretrained_demo

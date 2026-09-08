@@ -16,11 +16,31 @@ def path(value):
     return value if value.is_absolute() else ROOT / value
 
 
-def load(file):
+def load(file, _parents=()):
+    file = Path(file).resolve()
+    if file in _parents:
+        raise ValueError(f"Configuration inheritance cycle: {file}")
     with open(file, encoding="utf-8") as stream:
         result = yaml.safe_load(stream)
     if not isinstance(result, dict):
         raise ValueError("Configuration must be a YAML mapping")
+    parent = result.pop("extends", None)
+    if parent is not None:
+        if not isinstance(parent, str):
+            raise ValueError("extends must be a YAML filename")
+        base = load(file.parent / parent, (*_parents, file))
+        result = _merge(base, result)
+    return result
+
+
+def _merge(base, override):
+    result = dict(base)
+    for key, value in override.items():
+        result[key] = (
+            _merge(result[key], value)
+            if isinstance(value, dict) and isinstance(result.get(key), dict)
+            else value
+        )
     return result
 
 
