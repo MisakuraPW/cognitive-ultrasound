@@ -1,0 +1,26 @@
+seed: 42
+train_folder: data/echonet-polar/train
+val_folder: data/echonet-polar/val
+split_manifest: configs/splits/split.yaml
+output: checkpoints/training
+image_size: [112, 112]
+temporal_window: 3
+batch_size: 32
+epochs: 500
+# The upstream file has a debug value of 5. 10000 is its commented full-run setting,
+# not a verified value from the paper. Keep this difference in the training manifest.
+steps_per_epoch: 10000
+validation_steps: 5
+learning_rate: 0.0001
+weight_decay: 0.0001
+loss: mae
+ema: 0.999
+min_signal_rate: 0.02
+max_signal_rate: 0.95
+network_kwargs:
+  embedding_max_frequency: 1000.0
+  embedding_dims: 32
+  widths: [32, 64, 96, 128]
+  block_depth: 2
+precision: float32
+image_range: [-60, 0]

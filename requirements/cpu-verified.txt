@@ -1,0 +1,20 @@
+# Local Windows CPU compatibility check, NOT a Linux CUDA lock.
+numpy==2.2.4
+scipy==1.15.3
+keras==3.12.4
+jax==0.6.2
+jaxlib==0.6.2
+tensorflow==2.20.0
+tf2jax==0.3.7
+h5py==3.16.0
+scikit-image==0.25.2
+matplotlib==3.10.3
+pillow==11.2.1
+huggingface-hub==0.29.1
+pytest==9.1.1
+ruff==0.16.6
+rich==15.0.0
+dm-tree==0.1.10
+-e ./vendor/casl/zea
+-e ./vendor/casl
+-e .

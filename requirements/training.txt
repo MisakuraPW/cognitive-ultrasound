@@ -1,0 +1,11 @@
+# Separate Linux GPU training environment. Do not mix CUDA libraries blindly.
+tensorflow[and-cuda]==2.20.0
+keras==3.12.4
+numpy==2.2.4
+scipy==1.15.3
+h5py==3.16.0
+scikit-image==0.25.2
+rich>=13
+-e ./vendor/casl/zea
+-e ./vendor/casl
+-e .[test]

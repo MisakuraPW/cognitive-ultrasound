@@ -1,0 +1,54 @@
+{
+    "module": "zea.models.diffusion",
+    "class_name": "DiffusionModel",
+    "config": {
+        "name": "diffusion",
+        "trainable": true,
+        "dtype": {
+            "module": "keras",
+            "class_name": "DTypePolicy",
+            "config": {
+                "name": "float32"
+            },
+            "registered_name": null
+        },
+        "input_shape": [
+            112,
+            112,
+            3
+        ],
+        "network_name": "unet_time_conditional",
+        "network_kwargs": {
+            "block_depth": 2,
+            "widths": [
+                32,
+                64,
+                96,
+                128
+            ]
+        },
+        "input_range": [
+            -1,
+            1
+        ],
+        "min_signal_rate": 0.02,
+        "max_signal_rate": 0.95
+    },
+    "registered_name": "DiffusionModel",
+    "build_config": {
+        "input_shape": [
+            [
+                1,
+                112,
+                112,
+                3
+            ],
+            [
+                1,
+                1,
+                1,
+                1
+            ]
+        ]
+    }
+}

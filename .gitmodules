@@ -1,0 +1,4 @@
+[submodule "vendor/casl"]
+	path = vendor/casl
+	url = https://github.com/tue-bmd/casl.git
+	ignore = untracked

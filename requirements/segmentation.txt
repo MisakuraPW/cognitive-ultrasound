@@ -1,0 +1,6 @@
+# Add to the inference environment for the official EchoNet bridge.
+# Resolve and pip-check on Linux before GPU validation.
+tensorflow==2.20.0
+tf2jax==0.3.7
+keras==3.12.4
+jax==0.6.2

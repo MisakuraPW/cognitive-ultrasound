@@ -1,0 +1,11 @@
+# Linux GPU starting environment, not yet validated on AutoDL. Python 3.10/3.11.
+keras==3.12.4
+jax[cuda12]==0.6.2
+numpy==2.2.4
+scipy==1.15.3
+h5py==3.16.0
+scikit-image==0.25.2
+rich>=13
+-e ./vendor/casl/zea
+-e ./vendor/casl
+-e .[test]

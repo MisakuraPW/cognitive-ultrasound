@@ -1,0 +1,29 @@
+seed: 42
+synthetic_input: false
+backend: jax
+precision: float32
+data_root: data/echonet-polar
+split_manifest: configs/splits/split.yaml
+checkpoint: checkpoints/official
+evaluation_checkpoints: checkpoints/evaluation
+split: test
+methods: [random, uniform, casl]
+budgets: [2, 4, 7, 14, 28, 56, 112]
+frames: 100
+limit_cases: null
+particles: 2
+temporal_window: 3
+num_steps: 500
+initial_step: 450
+omega: 10
+reconstruction: choose_first
+hard_project: true
+image_range: [-60, 0]
+entropy_sigma: 1.0
+metrics: [psnr, ssim, lpips]
+metric_domain: polar_uint8
+segmentation: false
+save_trajectory: true
+visualize_every: 20
+output: results/baseline
+profile: false

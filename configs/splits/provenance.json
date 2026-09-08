@@ -1,0 +1,23 @@
+{
+  "revision": "534aa314fe5a54912483b7cab936ec023f934d10",
+  "statistics": {
+    "train": {
+      "videos": 6985,
+      "frames": 1222063,
+      "shorter_than_100": 237,
+      "source_sha256": "21a22651439300352336b750c30c4beeb0bad07106c44b1a821fc550d797744e"
+    },
+    "val": {
+      "videos": 500,
+      "frames": 84953,
+      "shorter_than_100": 15,
+      "source_sha256": "d8a20cf2ec93d436b1d55c756f18da0930179a6c93c2ba076d2aef43b0b3f2bd"
+    },
+    "test": {
+      "videos": 500,
+      "frames": 88167,
+      "shorter_than_100": 20,
+      "source_sha256": "e2a037765273ab1d3c5d2480caeee0d10f359058b127567fb1695ff9a4b828c9"
+    }
+  }
+}
