@@ -2,6 +2,28 @@
 
 当前选择：本地 CPU 全量转换 10030 个 AVI，保持官方 CASL 极坐标/cubic 算法；AutoDL 关机，之后手动上传并运行评估与训练。无需 GPU、无需重新安装本机已验证的 `.venv`。不会下载新的 EchoNet 数据或修改原始 AVI。
 
+后续执行偏好：批量 CPU 预处理优先在本地完成并保存可复用结果；先检查本地内存、磁盘和耗时，再安排运行。上传、下载依赖和传输检查尽量在云端无卡模式完成，准备好后再启用 GPU 评估/训练，避免 GPU 空等。训练期间正常的数据读取、归一化和批次组装仍在训练机器执行。
+
+## 转换之后的顺序
+
+1. 本地转换结束后自动审计。确认 `results/local_conversion/status.json` 为 `completed`，并解决 `conversion_failures.json` 中的失败病例；不能仅凭文件总数认定准备成功。
+2. 手动上传下面列出的数据目录和清单。在云端无卡模式完成传输与检查，必要时比较两端 SHA256；本地审计不能证明上传后文件无损。
+3. 云端检查代码、权重和上传数据，再切换 GPU 模式。现有后台入口仍会执行 GPU 检查、资源检查和完整数据审计；`--prepared-data` 只跳过全量转换。
+4. 小规模演示和评估试跑后，使用官方权重在 test 划分评估随机、均匀和 CASL 采样；试跑生成正式评估耗时估算。
+5. 带 `--with-training` 时，继续训练试跑、耗时估算、正式训练，再对自己的权重执行同一套评估。当前正式训练预算为 500 epochs × 10000 steps，尚未核实为论文实际总步数；后台不会依据估时自动缩短训练。
+6. 自动生成报告、结果包和单独的训练恢复包，位于 `/root/autodl-tmp/casl_exports/`。下载并校验后保留本地转换数据，后续实验可复用。
+
+现有 CASL 流程没有另一轮必须离线生成的全量图像数据。训练读取 `data/image`，组装连续 3 帧并归一化到 `[-1, 1]`；这些随批次执行，不再生成整套转换副本。新实验如果需要额外离线缓存或特征提取，先按上述本地预处理偏好安排。
+
+上传后可先在无卡模式单独审计（不启动完整后台入口）：
+
+```bash
+source /root/miniconda3/etc/profile.d/conda.sh &&
+conda activate casl &&
+cd /root/autodl-tmp/cognitive-ultrasound &&
+python -m cognitive_ultrasound audit-data --data-root /root/autodl-tmp/datasets/CASL-EchoNet-polar --output reports/uploaded_dataset_statistics.md
+```
+
 ## 内存紧张时的提速（2026-09-09）
 
 30 帧真实图像对照中，缓存坐标与 Delaunay 三角网格后的插值部分用时 0.272 秒，原实现 3.659 秒（约 13.4 倍），输出逐像素一致。每帧的像素值、梯度估计和 Clough–Tocher 三次插值仍重新计算；不是缓存图像内容，也不是从 B-mode 恢复原始 RF 数据。整段视频还要解码与压缩，不能把这个倍数直接当作整体提速保证。每个新 HDF5 和转换清单记录计算实现，已完成的旧文件保留。
