@@ -86,3 +86,35 @@ def test_preprocessing_matches_official_pipeline():
     parameters = pipeline.prepare_parameters(dynamic_range=(-60, 0))
     result = np.asarray(pipeline(data=raw, **parameters)["data"])
     np.testing.assert_allclose(result, ((raw + 60.0) / 30.0 - 1.0)[..., None], atol=1e-6)
+
+
+def test_converter_cli_reads_extracted_dataset_and_preserves_sources(tmp_path):
+    """Exercise the real pinned CLI, AVI decoder, split assignment and HDF5 writer."""
+    import imageio.v2 as imageio
+    import yaml
+
+    from cognitive_ultrasound.data import convert, inspect_file
+    from cognitive_ultrasound.provenance import sha256
+
+    raw = tmp_path / "shared/EchoNet-Dynamic"
+    videos = raw / "Videos"
+    videos.mkdir(parents=True)
+    split_dir = tmp_path / "manifests"
+    split_dir.mkdir()
+    split_file = split_dir / "split.yaml"
+    split_file.write_text(
+        yaml.safe_dump({split: [f"{split}.hdf5"] for split in ("train", "val", "test")}),
+        encoding="utf-8",
+    )
+    for name in ("train", "val", "test", "rejected"):
+        frame = np.full((112, 112, 3), 0 if name == "rejected" else 128, dtype=np.uint8)
+        imageio.mimwrite(videos / f"{name}.avi", [frame], fps=10, codec="ffv1")
+    before = {p.relative_to(raw): sha256(p) for p in raw.rglob("*") if p.is_file()}
+    output = tmp_path / "polar"
+    convert(raw, output, split_file)
+    for split in ("train", "val", "test"):
+        assert inspect_file(output / split / f"{split}.hdf5")["frames"] == 1
+    assert (output / "rejected/rejected.hdf5").is_file()
+    converted = yaml.safe_load((output / "split.yaml").read_text(encoding="utf-8"))
+    assert converted == {name: [f"{name}.hdf5"] for name in ("train", "val", "test", "rejected")}
+    assert before == {p.relative_to(raw): sha256(p) for p in raw.rglob("*") if p.is_file()}

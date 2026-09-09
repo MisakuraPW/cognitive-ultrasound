@@ -86,18 +86,26 @@ def convert(raw, output, manifest):
     read_splits(manifest)
     if not (raw / "Videos").is_dir():
         raise FileNotFoundError(f"Expected licensed EchoNet data at {raw / 'Videos'}")
+    if raw.name != "EchoNet-Dynamic":
+        raise ValueError(
+            "The upstream converter requires an extracted EchoNet-Dynamic/Videos layout; "
+            "--raw must point to that EchoNet-Dynamic directory"
+        )
     if manifest.name != "split.yaml":
         raise ValueError("The upstream converter requires a directory containing split.yaml")
     if output.exists() and any(output.iterdir()):
         raise FileExistsError("Use a fresh destination to avoid mixing conversions")
-    # Upstream --split_path is a DIRECTORY, despite the README example.
+    # unzip(src, "echonet") appends EchoNet-Dynamic/Videos itself. Pass the
+    # dataset's parent, not Videos or the dataset root. The check above ensures
+    # the extracted folder exists, so upstream never extracts into shared storage.
+    # Upstream --split_path is also a DIRECTORY, despite the README example.
     subprocess.run(
         [
             sys.executable,
             "-m",
             "zea.data.convert",
             "echonet",
-            str(raw / "Videos"),
+            str(raw.parent),
             str(output),
             "--split_path",
             str(manifest.parent),

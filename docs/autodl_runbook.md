@@ -129,6 +129,8 @@ df -i /root/autodl-tmp
 
 若原始目录不同，修改 `configs/autodl/paths.yaml` 的 raw_root，并同步修改下一节命令的 `--raw`。若代码/派生数据/输出目录变化，还须同步 evaluation.yaml、training.yaml 和所有显式命令；paths.yaml 不会自动重写运行配置。
 
+`raw_root`/`--raw` 指向已解压的 `EchoNet-Dynamic` 目录，内部应有 `Videos`。封装会向上游 CLI 传入它的父目录，因为固定版本的 `unzip(src, "echonet")` 会自行拼接 `EchoNet-Dynamic/Videos`。旧版本误传 `Videos` 导致 `Could not find EchoNet-Dynamic.zip or EchoNet-Dynamic folder`，应拉取修复后重新启动；不要移动共享数据，也不要通过重新解压来绕过这个错误。该错误发生于上游创建输出目录之前。
+
 ## 5. 后台会话、转换全量数据与权重
 
 长任务用 tmux，避免 SSH 断开导致退出。若镜像没有它，安装一次：
