@@ -7,7 +7,7 @@ name = "cognitive-ultrasound"
 version = "0.1.0"
 description = "Auditable CASL reproduction and experiment framework"
 requires-python = ">=3.10,<3.13"
-dependencies = ["numpy>=1.26,<3", "PyYAML>=6", "h5py>=3.11", "scipy>=1.13", "scikit-image>=0.23", "matplotlib>=3.8", "pillow>=10", "huggingface-hub>=0.26"]
+dependencies = ["numpy>=1.26,<3", "PyYAML>=6", "h5py>=3.11", "scipy>=1.13", "scikit-image>=0.23", "matplotlib>=3.8", "pillow>=10", "huggingface-hub>=0.26", "psutil>=5.9"]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "ruff>=0.9"]

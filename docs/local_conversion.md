@@ -2,6 +2,23 @@
 
 当前选择：本地 CPU 全量转换 10030 个 AVI，保持官方 CASL 极坐标/cubic 算法；AutoDL 关机，之后手动上传并运行评估与训练。无需 GPU、无需重新安装本机已验证的 `.venv`。不会下载新的 EchoNet 数据或修改原始 AVI。
 
+## 内存紧张时的提速（2026-09-09）
+
+30 帧真实图像对照中，缓存坐标与 Delaunay 三角网格后的插值部分用时 0.272 秒，原实现 3.659 秒（约 13.4 倍），输出逐像素一致。每帧的像素值、梯度估计和 Clough–Tocher 三次插值仍重新计算；不是缓存图像内容，也不是从 B-mode 恢复原始 RF 数据。整段视频还要解码与压缩，不能把这个倍数直接当作整体提速保证。每个新 HDF5 和转换清单记录计算实现，已完成的旧文件保留。
+
+本次采样可用内存约 1.1–1.9 GiB，因此使用缓存实现配合 **1 个工作进程**，优先避免换页，而不是增加并行度。单进程启动门槛 1.5 GiB；原 2 进程入口仍要求至少 3 GiB。转换进度 JSON 每完成或记录一个失败视频都会更新可用内存和内存使用率。需要更换进程数时，先停止这套任务，再用同一输出目录续跑：
+
+```powershell
+Set-Location 'G:\科研项目\毕设\cognitive-ultrasound'
+$env:PYTHONUTF8 = '1'
+.\.venv\Scripts\python.exe scripts/stop_local_conversion.py
+.\.venv\Scripts\python.exe -X utf8 scripts/local_conversion.py --raw 'G:\SRTP\dataset\EchoNet-Dynamic' --output 'G:\SRTP\dataset\CASL-EchoNet-polar' --workers 1 --start
+```
+
+停止脚本先核对进程命令、工作目录、原始/输出路径，随后只终止这套转换进程树，不停止其他应用或科研项目。已发布 HDF5 不改写。
+
+发现一个独立数据问题：`0X1DFB35BA6E0A7B20.avi` 属于固定官方 train 清单，但上游首帧形状检查返回拒绝（右侧指标约 2.976，阈值为 5），导致原任务停在 1110 个文件。现在个别视频失败会写入 `conversion_failures.json` 并继续其他视频；不会放宽筛选、改划分或将失败病例伪装为成功。只要仍有失败病例，最终状态仍为 failed，数据不得视为完整复现输入。磁盘写满、内存分配失败或进程池损坏则立即停止。
+
 - 原始目录：`G:\SRTP\dataset\EchoNet-Dynamic`
 - 派生输出：`G:\SRTP\dataset\CASL-EchoNet-polar`
 - 本机约 16GB 内存、20 个逻辑处理器，默认使用 2 个进程，每个进程计算线程数为 1。

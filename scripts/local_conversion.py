@@ -64,7 +64,7 @@ def preflight(raw, output, workers):
     available = available_memory_gib()
     # Two real short AVIs peaked at ~1.1 GiB for the process tree on this host.
     # Reserve extra room for longer videos and coordinator/runtime overhead.
-    required_memory = 1 + workers
+    required_memory = 1.5 if workers == 1 else 1 + workers
     print(
         f"Input videos: {len(present)}; free disk: {free:.1f} GiB; available RAM: {available:.1f} GiB; workers: {workers}",
         flush=True,

@@ -1,12 +1,14 @@
 """Bounded parallelism around the unchanged upstream H5Processor, with atomic outputs."""
 
 import argparse
+import errno
 import hashlib
 import json
 import multiprocessing
 import os
 import time
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,10 +16,13 @@ from uuid import uuid4
 
 import h5py
 import numpy as np
+import psutil
 import yaml
 
 from .config import ZEA_COMMIT
 from .data import read_splits
+
+ENGINE = "scipy_clough_tocher_cached_geometry_v1"
 
 
 def atomic_json(file, value):
@@ -72,9 +77,14 @@ def init_worker(splits):
 
     activate("jax")
     global PROCESSOR, SPLITS
-    from zea.data.convert.echonet import H5Processor
+    from zea.data.convert import echonet
 
-    PROCESSOR, SPLITS = H5Processor, splits
+    from .polar import cached_cartesian_to_polar_matrix
+
+    # Worker-local runtime adapter; pinned upstream source remains untouched.
+    echonet.cartesian_to_polar_matrix = cached_cartesian_to_polar_matrix
+
+    PROCESSOR, SPLITS = echonet.H5Processor, splits
 
 
 def convert_one(source, output, split, identity_digest):
@@ -90,6 +100,7 @@ def convert_one(source, output, split, identity_digest):
             handle.attrs["casl_conversion_identity"] = identity_digest
             handle.attrs["casl_source_size"] = stat.st_size
             handle.attrs["casl_source_mtime_ns"] = stat.st_mtime_ns
+            handle.attrs["casl_conversion_engine"] = ENGINE
         current = source.stat()
         if (stat.st_size, stat.st_mtime_ns) != (current.st_size, current.st_mtime_ns):
             raise ValueError(f"Source changed during conversion: {source}")
@@ -140,7 +151,8 @@ def run(raw, output, manifest, workers=8, resume=False):
 def run_locked(output, sources, assigned, identity, digest, splits, workers):
     metadata = output / "conversion_manifest.json"
     legacy = not metadata.exists()
-    if not legacy and json.loads(metadata.read_text(encoding="utf-8"))["identity"] != identity:
+    previous = json.loads(metadata.read_text(encoding="utf-8")) if not legacy else {}
+    if not legacy and previous["identity"] != identity:
         raise ValueError(
             "Conversion source, split or upstream revision changed; refusing mixed data"
         )
@@ -196,13 +208,19 @@ def run_locked(output, sources, assigned, identity, digest, splits, workers):
         "workers": workers,
         "reused": len(complete),
         "rebuilt": repaired,
+        "engine": ENGINE,
+        "engines_used": sorted(
+            set(previous.get("engines_used", ["upstream_griddata"] if files else [])) | {ENGINE}
+        ),
     }
     atomic_json(metadata, record)
     progress_file = output / "conversion_progress.json"
     started = time.monotonic()
     finished = 0
+    attempted = 0
+    failures = []
     print(
-        f"Reusing {len(complete)} files; {len(pending)} pending; starting {workers} processes",
+        f"Reusing {len(complete)} files; {len(pending)} pending; starting {workers} processes; engine={ENGINE}",
         flush=True,
     )
 
@@ -214,11 +232,16 @@ def run_locked(output, sources, assigned, identity, digest, splits, workers):
                 "total": len(sources),
                 "reused": len(complete),
                 "converted_this_run": finished,
-                "remaining": len(pending) - finished,
+                "failed_this_run": len(failures),
+                "remaining": len(pending) - attempted,
                 "workers": workers,
+                "available_memory_gib": psutil.virtual_memory().available / 2**30,
+                "memory_used_percent": psutil.virtual_memory().percent,
                 "elapsed_seconds": elapsed,
-                "estimated_remaining_hours": ((len(pending) - finished) * elapsed / finished / 3600)
-                if finished
+                "estimated_remaining_hours": (
+                    (len(pending) - attempted) * elapsed / attempted / 3600
+                )
+                if attempted
                 else None,
             },
         )
@@ -233,40 +256,66 @@ def run_locked(output, sources, assigned, identity, digest, splits, workers):
                 initargs=(splits,),
             ) as pool:
                 iterator = iter(pending)
-                active = set()
+                active = {}
 
                 def submit_next():
                     source = next(iterator, None)
                     if source is not None:
-                        active.add(
-                            pool.submit(
-                                convert_one,
-                                str(source),
-                                str(output),
-                                assigned.get(f"{source.stem}.hdf5", "rejected"),
-                                digest,
-                            )
+                        future = pool.submit(
+                            convert_one,
+                            str(source),
+                            str(output),
+                            assigned.get(f"{source.stem}.hdf5", "rejected"),
+                            digest,
                         )
+                        active[future] = source
 
                 for _ in range(workers):
                     submit_next()
                 while active:
-                    done, active = wait(active, return_when=FIRST_COMPLETED)
+                    done, _ = wait(active, return_when=FIRST_COMPLETED)
                     for future in done:
-                        item = future.result()  # Propagate failures; never silently skip a video.
-                        finished += 1
+                        source = active.pop(future)
+                        attempted += 1
+                        try:
+                            item = future.result()
+                        except Exception as error:
+                            if (
+                                isinstance(error, (BrokenProcessPool, MemoryError))
+                                or getattr(error, "errno", None) == errno.ENOSPC
+                            ):
+                                raise
+                            failures.append(
+                                {
+                                    "source": source.name,
+                                    "split": assigned.get(f"{source.stem}.hdf5", "rejected"),
+                                    "error": f"{type(error).__name__}: {error}",
+                                }
+                            )
+                            atomic_json(output / "conversion_failures.json", failures)
+                            print(
+                                f"FAILED {source.name}: {error}; recorded for investigation; continuing other videos",
+                                flush=True,
+                            )
+                        else:
+                            finished += 1
+                            print(
+                                f"[{len(complete) + finished}/{len(sources)}] {item['split']}/{item['file']} "
+                                f"frames={item['frames']} worker_seconds={item['seconds']:.1f}",
+                                flush=True,
+                            )
                         progress()
-                        print(
-                            f"[{len(complete) + finished}/{len(sources)}] {item['split']}/{item['file']} "
-                            f"frames={item['frames']} worker_seconds={item['seconds']:.1f}",
-                            flush=True,
-                        )
                     for _ in done:
                         submit_next()
         produced = {
             split: sorted(p.name for p in (output / split).glob("*.hdf5"))
             for split in ("train", "val", "test", "rejected")
         }
+        atomic_json(output / "conversion_failures.json", failures)
+        if failures:
+            raise ValueError(
+                f"{len(failures)} videos failed; other outputs retained. See conversion_failures.json. Dataset is NOT complete."
+            )
         if any(produced[split] != splits[split] for split in splits):
             raise ValueError("Converted output does not match requested train/val/test split")
         temporary = output / "split.yaml.tmp"
@@ -278,6 +327,7 @@ def run_locked(output, sources, assigned, identity, digest, splits, workers):
         raise
     finally:
         record["converted_this_run"] = finished
+        record["failures"] = failures
         atomic_json(metadata, record)
 
 
