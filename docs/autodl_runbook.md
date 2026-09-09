@@ -2,6 +2,8 @@
 
 更新：2026-09-09。用户提供的实例日志已显示 JAX 和 TensorFlow GPU 卷积检查通过；全量数据转换、正式训练与评估尚待云端执行。路径沿用已有 EchoNet 交接约定，不修改 EchoRVM、旧缓存或共享原始数据。
 
+**当前采用本地全量转换、手动上传的方案，见 [本地转换指南](local_conversion.md)。**上传完整数据后用 `--prepared-data` 跳过云端重复转换，先做完整审计，再接评估与训练。下述云端转换入口仍保留为备用。
+
 ## 已安装好环境：一次启动全流程
 
 已完成安装并通过 GPU 检查时，直接在实例终端执行下面这段。不必重复创建环境、安装包或启动 tmux：
@@ -15,7 +17,7 @@ git pull --ff-only &&
 python scripts/autodl_overnight.py --start --with-training
 ```
 
-看到 `Started PID ...` 表示后台进程已启动，可以断开 SSH。脚本依次执行 GPU/输入检查、获取权重、全量转换、完整数据审计、演示、评估 pilot 与耗时估算、官方权重正式评估、训练 pilot 与耗时估算、正式训练、自训练权重正式评估、打包。每一步成功才继续下一步，任何一步报错就记录失败并停止；无需手工接下一阶段。固定 `OMP_NUM_THREADS=8`，处理当前日志中的无效线程数警告。
+看到 `Started PID ...` 表示后台进程已启动，可以断开 SSH。脚本依次执行 GPU/输入检查、获取权重、全量转换、完整数据审计、演示、评估 pilot 与耗时估算、官方权重正式评估、训练 pilot 与耗时估算、正式训练、自训练权重正式评估、打包。每一步成功才继续下一步，任何一步报错就记录失败并停止；无需手工接下一阶段。评估/训练使用 `OMP_NUM_THREADS=8`；转换默认 8 个进程，每个进程的 OMP/BLAS 线程数为 1，且仅转换子进程禁用 GPU，避免进程争抢显存。
 
 `source /etc/network_turbo` 启用 AutoDL 内置学术资源加速，后台进程及其子进程会继承当前终端导出的代理环境。它用于访问官方 Hugging Face 权重与划分，仍固定原有仓库及提交版本，不重新下载 EchoNet AVI。[AutoDL 官方说明](https://www.autodl.com/docs/network_turbo/)。该服务不保证始终可用；本机检查无法证明实例上的连通性。
 
@@ -23,7 +25,29 @@ python scripts/autodl_overnight.py --start --with-training
 
 **默认不自动关机。**如希望全流程完成或报错后自动关闭实例，在启动命令末尾加 `--shutdown-on-exit`；这会调用 AutoDL 的 `/usr/bin/shutdown`，也可能在早期检查失败时关机。它不释放实例。未加此参数时，流程结束后实例仍在运行，需要自行在控制台关机。强制杀进程、系统崩溃等不能保证执行自动关机。
 
-全新转换要求派生数据所在盘至少 **180 GiB 可用空间**，否则在转换前停止；推荐数据盘总容量 300GB。这是保守启动门槛，不是压缩后大小保证。非空 polar 目录会直接完整审计，绝不自动覆盖或删除；如果上次只转换了一部分，会停止等待处理，不能当作已完成数据继续训练。
+全新转换要求派生数据所在盘至少 **180 GiB 可用空间**，否则在转换前停止；推荐数据盘总容量 300GB。这是保守启动门槛，不是压缩后大小保证。已有 polar 数据会先校验再续转：保留完整文件，将损坏文件隔离到 `.conversion-quarantine` 后重做。第一次接续旧串行输出时，额外重做最新的一个 HDF5，防止中断写入看似可读；其余旧文件检查实际 AVI 帧数与完整 HDF5 像素范围。新任务先写 `.conversion-tmp`，成功后原子发布。中断后的临时文件不会被视为完成，也不会混入训练；它们保留在临时目录，排查后可单独清理。记录源目录、所有 AVI 大小/修改时间、划分和上游版本，后续发现不一致就停止。完整审计通过才进入评估和训练。
+
+### 从旧串行任务切换到并行
+
+适用于当前 16 vCPU、120GB 内存实例，先使用 8 个转换进程。退出 `tail -f`（Ctrl+C 只退出查看），然后在 casl 环境执行：
+
+```bash
+source /etc/network_turbo &&
+cd /root/autodl-tmp/cognitive-ultrasound &&
+git pull --ff-only &&
+python scripts/stop_autodl_pipeline.py &&
+python scripts/autodl_overnight.py --start --with-training --conversion-workers 8
+```
+
+停止脚本核对 status.json 中的 PID、命令、工作目录和独立进程组，仅向这套后台任务及其子进程发送 SIGTERM；等待确认全部停止后才允许下一条命令启动。不删除原始数据或已完成 HDF5。旧程序当时正在写的一个文件可能不完整；并行程序再次中断时，可能需要重做最多 8 个尚在处理的文件，已经发布的结果可复用。
+
+实时日志仍在 `outputs_casl/overnight/run.log`。转换详细进度可用：
+
+```bash
+watch -n 5 cat /root/autodl-tmp/datasets/CASL-EchoNet-polar/conversion_progress.json
+```
+
+包含 reused、converted_this_run、remaining、workers 和根据本次吞吐估算的剩余小时数。前期估计包含进程初始化，不能将 8 进程等同于保证 8 倍提速。16 vCPU 是分配的逻辑核数，不代表 16 个独立物理核心。当前整条流程需要 GPU；切到仅 1 核的无卡实例后，不能同时维持并行转换与自动接续 GPU 评估/训练。
 
 正式训练沿用 `500 epochs × 10000 steps`（500 万更新）的当前配置，pilot 不会替代正式训练，也不会根据耗时自动缩短预算。该预算仍不是已核实的论文总训练步数。全流程可能运行多天，估时文件保存在 `outputs_casl/preparation/evaluation-eta.json` 和 `training-eta.json`，生成后可查看。
 
@@ -161,7 +185,7 @@ du -sh /root/autodl-tmp/datasets/CASL-EchoNet-polar
 casl-repro fetch-assets --with-evaluation
 ```
 
-这一阶段 CPU 解码与 cubic 插值占主要时间，目前官方转换入口单进程，不能用 GPU 推理速度推算。全量转换可能耗时较长，日志中的实际处理进度才是依据。**已有完整 CASL 极坐标数据时只运行 audit，不重复转换。**输出目录非空会拒绝转换；中途失败没有转换续跑入口，先查清失败原因和剩余空间，再确定使用新的空目录，不能直接删除旧项目数据。
+这一阶段 CPU 解码与 cubic 插值占主要时间，不能用 GPU 推理速度推算。手动 `prepare-data` 命令加 `--workers 8 --resume` 即可使用并行续转；不带参数时保留原串行入口供对照。后台全流程已默认使用并行续转。并行只改变视频之间的调度，每个视频仍调用固定上游 H5Processor，维持相同分割、接受条件、cubic 极坐标转换、数值范围和压缩写入。已有完整 CASL 极坐标数据也可只运行 audit。
 
 tmux 离开但保留任务：按 `Ctrl+B`，松开后按 `D`。重新 SSH 登录后用 `tmux attach -t casl` 回到任务。tmux 只能保护断线，实例关机会停止计算。
 

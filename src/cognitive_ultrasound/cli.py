@@ -24,6 +24,8 @@ def parser():
     q.add_argument("--raw", required=True, help="EchoNet-Dynamic root containing Videos")
     q.add_argument("--output", default="data/echonet-polar")
     q.add_argument("--manifest", default="configs/splits/split.yaml")
+    q.add_argument("--workers", type=int, default=1, help="Conversion processes (1-32)")
+    q.add_argument("--resume", action="store_true", help="Validate and reuse complete conversions")
     q = sub.add_parser("audit-data")
     q.add_argument("--data-root", default="data/echonet-polar")
     q.add_argument("--manifest", default="configs/splits/split.yaml")
@@ -77,9 +79,17 @@ def main(argv=None):
     elif args.command == "prepare-data":
         from .data import audit_dataset, convert
 
-        convert(path(args.raw), path(args.output), path(args.manifest))
+        convert(
+            path(args.raw),
+            path(args.output),
+            path(args.manifest),
+            args.workers,
+            args.resume,
+        )
         audit_dataset(
-            path(args.output), path(args.manifest), ROOT / "reports/dataset_statistics.md"
+            path(args.output),
+            path(args.manifest),
+            ROOT / "reports/dataset_statistics.md",
         )
     elif args.command == "audit-data":
         from .data import audit_dataset

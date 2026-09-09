@@ -118,3 +118,54 @@ def test_converter_cli_reads_extracted_dataset_and_preserves_sources(tmp_path):
     converted = yaml.safe_load((output / "split.yaml").read_text(encoding="utf-8"))
     assert converted == {name: [f"{name}.hdf5"] for name in ("train", "val", "test", "rejected")}
     assert before == {p.relative_to(raw): sha256(p) for p in raw.rglob("*") if p.is_file()}
+    # Run real spawned workers and compare every image pixel with the original serial CLI.
+    import h5py
+
+    parallel = tmp_path / "parallel"
+    convert(raw, parallel, split_file, workers=2, resume=True)
+    for split in ("train", "val", "test", "rejected"):
+        with h5py.File(output / split / f"{split}.hdf5") as expected:
+            with h5py.File(parallel / split / f"{split}.hdf5") as actual:
+                for key in ("data/image_sc", "data/image"):
+                    if key in expected:
+                        np.testing.assert_array_equal(actual[key][:], expected[key][:])
+
+    # Resume must keep good files byte-for-byte, repair corruption, and generate missing files.
+    retained = parallel / "train/train.hdf5"
+    retained_state = (sha256(retained), retained.stat().st_mtime_ns)
+    (parallel / "val/val.hdf5").write_bytes(b"interrupted HDF5 write")
+    (parallel / "test/test.hdf5").unlink()
+    convert(raw, parallel, split_file, workers=2, resume=True)
+    assert (sha256(retained), retained.stat().st_mtime_ns) == retained_state
+    assert inspect_file(parallel / "val/val.hdf5")["frames"] == 1
+    assert inspect_file(parallel / "test/test.hdf5")["frames"] == 1
+    assert len(list((parallel / ".conversion-quarantine").rglob("val.hdf5"))) == 1
+
+    # Adopt outputs from the old serial CLI, only rebuilding its newest (possibly interrupted) file.
+    legacy_files = list(output.glob("*/*.hdf5"))
+    last = max(legacy_files, key=lambda p: p.stat().st_mtime_ns)
+    retained_legacy = {p: (sha256(p), p.stat().st_mtime_ns) for p in legacy_files if p != last}
+    convert(raw, output, split_file, workers=2, resume=True)
+    assert retained_legacy == {p: (sha256(p), p.stat().st_mtime_ns) for p in retained_legacy}
+    assert len(list((output / ".conversion-quarantine").rglob(last.name))) == 1
+    assert before == {p.relative_to(raw): sha256(p) for p in raw.rglob("*") if p.is_file()}
+
+
+def test_parallel_converter_propagates_worker_failure(tmp_path):
+    import json
+    import subprocess
+
+    import yaml
+
+    from cognitive_ultrasound.data import convert
+
+    raw = tmp_path / "EchoNet-Dynamic"
+    (raw / "Videos").mkdir(parents=True)
+    (raw / "Videos/broken.avi").write_bytes(b"not a video")
+    manifest = tmp_path / "split.yaml"
+    manifest.write_text(yaml.safe_dump({"train": ["broken.hdf5"], "val": [], "test": []}))
+    output = tmp_path / "output"
+    with pytest.raises(subprocess.CalledProcessError):
+        convert(raw, output, manifest, workers=2, resume=True)
+    assert json.loads((output / "conversion_manifest.json").read_text())["status"] == "failed"
+    assert not (output / "train/broken.hdf5").exists()

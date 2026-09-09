@@ -32,8 +32,11 @@ def test_full_plan_orders_training_after_paper_and_uses_resume_only_when_present
     manifest.parent.mkdir(parents=True)
     manifest.write_text("{}", encoding="utf-8")
     assert "--resume" in dict(runner["steps"](tmp_path, paths, False, True))["training"]
-    assert "conversion" not in dict(runner["steps"](tmp_path, paths, False, True))
+    resumed = dict(runner["steps"](tmp_path, paths, False, True, 8))["conversion"]
+    assert "--resume" in resumed and resumed[resumed.index("--workers") + 1] == "8"
     assert "training" not in dict(runner["steps"](tmp_path, paths, False))
+    uploaded = dict(runner["steps"](tmp_path, paths, False, True, 8, prepared_data=True))
+    assert "conversion" not in uploaded and "audit" in uploaded and "training" in uploaded
 
 
 @pytest.mark.parametrize("shutdown", [False, True])

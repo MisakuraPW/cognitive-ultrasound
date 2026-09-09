@@ -1,7 +1,7 @@
 """Run the EchoNet pipeline unattended on Linux; opt into full training with --with-training.
 
 --start detaches from SSH. --shutdown-on-exit explicitly opts into powering off the
-AutoDL instance after success or failure. Existing partial conversions are never overwritten.
+AutoDL instance after success or failure. Complete conversions are validated and reused.
 """
 
 import argparse
@@ -21,7 +21,9 @@ from cognitive_ultrasound.config import ROOT, load  # noqa: E402
 from cognitive_ultrasound.operations import export_results  # noqa: E402
 
 
-def steps(project, paths, convert_needed, with_training=False):
+def steps(
+    project, paths, convert_needed, with_training=False, conversion_workers=8, prepared_data=False
+):
     py = sys.executable
     cli = [py, "-m", "cognitive_ultrasound"]
     prep = Path(paths["output_root"]) / "preparation"
@@ -41,13 +43,22 @@ def steps(project, paths, convert_needed, with_training=False):
         ("environment", [*cli, "doctor", "--output", str(prep / "environment.md")]),
         ("assets", [*cli, "fetch-assets", "--with-evaluation"]),
     ]
-    if convert_needed:
-        plan.append(
-            (
-                "conversion",
-                [*cli, "prepare-data", "--raw", paths["raw_root"], "--output", paths["polar_root"]],
-            )
+    plan.append(
+        (
+            "conversion",
+            [
+                *cli,
+                "prepare-data",
+                "--raw",
+                paths["raw_root"],
+                "--output",
+                paths["polar_root"],
+                "--workers",
+                str(conversion_workers),
+                "--resume",
+            ],
         )
+    )
     plan.append(
         (
             "audit",
@@ -138,7 +149,7 @@ def steps(project, paths, convert_needed, with_training=False):
                 ],
             )
         )
-    return plan
+    return [step for step in plan if step[0] != "conversion"] if prepared_data else plan
 
 
 def storage_check(paths, convert_needed):
@@ -187,7 +198,7 @@ def save_status(file, record):
     temporary.replace(file)
 
 
-def run(paths, state_dir, shutdown, with_training=False):
+def run(paths, state_dir, shutdown, with_training=False, conversion_workers=8, prepared_data=False):
     status_file = state_dir / "status.json"
     record = {
         "status": "running",
@@ -197,6 +208,8 @@ def run(paths, state_dir, shutdown, with_training=False):
         "completed_stages": [],
         "shutdown_on_exit": shutdown,
         "with_training": with_training,
+        "conversion_workers": conversion_workers,
+        "prepared_data": prepared_data,
     }
     code = 1
     try:
@@ -208,7 +221,7 @@ def run(paths, state_dir, shutdown, with_training=False):
         validate_config_paths(paths, with_training)
         polar = Path(paths["polar_root"])
         convert_needed = not polar.exists() or not any(polar.iterdir())
-        record["storage"] = storage_check(paths, convert_needed)
+        record["storage"] = storage_check(paths, convert_needed and not prepared_data)
         env = dict(
             os.environ,
             OMP_NUM_THREADS="8",
@@ -218,7 +231,7 @@ def run(paths, state_dir, shutdown, with_training=False):
         )
         print("OMP_NUM_THREADS=8; existing CUDA libraries retained.", flush=True)
         print(
-            f"Nonempty polar data is audited, never overwritten. Full training enabled: {with_training}",
+            f"Conversion validates/reuses existing files; workers={conversion_workers}. Full training enabled: {with_training}",
             flush=True,
         )
         prep = Path(paths["output_root"]) / "preparation"
@@ -228,7 +241,9 @@ def run(paths, state_dir, shutdown, with_training=False):
                 [sys.executable, "-m", "pip", "freeze"], stdout=stream, check=True, env=env
             )
         shutil.copytree(ROOT / "configs", prep / "configs", dirs_exist_ok=True)
-        for name, command in steps(ROOT, paths, convert_needed, with_training):
+        for name, command in steps(
+            ROOT, paths, convert_needed, with_training, conversion_workers, prepared_data
+        ):
             if name in ("demo", "paper", "training_pilot", "training", "paper_trained"):
                 storage_check(paths, False)
             record["stage"] = name
@@ -304,6 +319,12 @@ def main():
         help="After official evaluation, run the training pilot, full configured training, and trained-model evaluation",
     )
     parser.add_argument("--lock-fd", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--conversion-workers", type=int, default=8, choices=range(1, 33))
+    parser.add_argument(
+        "--prepared-data",
+        action="store_true",
+        help="Audit uploaded complete polar data; skip conversion and local source identity checks",
+    )
     args = parser.parse_args()
     if sys.platform != "linux":
         parser.error("Run only on the AutoDL Linux instance")
@@ -335,6 +356,9 @@ def main():
                 command.append("--shutdown-on-exit")
             if args.with_training:
                 command.append("--with-training")
+            if args.prepared_data:
+                command.append("--prepared-data")
+            command.extend(["--conversion-workers", str(args.conversion_workers)])
             with open(state_dir / "run.log", "a", buffering=1, encoding="utf-8") as log:
                 process = subprocess.Popen(
                     command,
@@ -349,7 +373,14 @@ def main():
             print(f"Status: {state_dir / 'status.json'}")
             print(f"Power off on success/failure: {args.shutdown_on_exit}")
             return 0
-        return run(paths, state_dir, args.shutdown_on_exit, args.with_training)
+        return run(
+            paths,
+            state_dir,
+            args.shutdown_on_exit,
+            args.with_training,
+            args.conversion_workers,
+            args.prepared_data,
+        )
 
 
 if __name__ == "__main__":

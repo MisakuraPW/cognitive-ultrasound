@@ -1,5 +1,6 @@
 """Use the official polar converter and official patient split; never resplit frames."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -78,7 +79,7 @@ def fetch_assets(checkpoint_dir, split_dir, weights=True):
         )
 
 
-def convert(raw, output, manifest):
+def convert(raw, output, manifest, workers=1, resume=False):
     from .official import activate
 
     activate("jax")
@@ -93,6 +94,34 @@ def convert(raw, output, manifest):
         )
     if manifest.name != "split.yaml":
         raise ValueError("The upstream converter requires a directory containing split.yaml")
+    if workers < 1 or workers > 32:
+        raise ValueError("Conversion workers must be between 1 and 32")
+    if workers > 1 or resume:
+        command = [
+            sys.executable,
+            "-m",
+            "cognitive_ultrasound.conversion",
+            "--raw",
+            str(raw),
+            "--output",
+            str(output),
+            "--manifest",
+            str(manifest),
+            "--workers",
+            str(workers),
+        ]
+        if resume:
+            command.append("--resume")
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES="-1", JAX_PLATFORMS="cpu")
+        for key in (
+            "OMP_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        ):
+            env[key] = "1"
+        subprocess.run(command, check=True, cwd=ROOT, env=env)
+        return
     if output.exists() and any(output.iterdir()):
         raise FileExistsError("Use a fresh destination to avoid mixing conversions")
     # unzip(src, "echonet") appends EchoNet-Dynamic/Videos itself. Pass the
