@@ -10,11 +10,16 @@
 source /root/miniconda3/etc/profile.d/conda.sh &&
 conda activate casl &&
 cd /root/autodl-tmp/cognitive-ultrasound &&
+source /etc/network_turbo &&
 git pull --ff-only &&
 python scripts/autodl_overnight.py --start --with-training
 ```
 
 看到 `Started PID ...` 表示后台进程已启动，可以断开 SSH。脚本依次执行 GPU/输入检查、获取权重、全量转换、完整数据审计、演示、评估 pilot 与耗时估算、官方权重正式评估、训练 pilot 与耗时估算、正式训练、自训练权重正式评估、打包。每一步成功才继续下一步，任何一步报错就记录失败并停止；无需手工接下一阶段。固定 `OMP_NUM_THREADS=8`，处理当前日志中的无效线程数警告。
+
+`source /etc/network_turbo` 启用 AutoDL 内置学术资源加速，后台进程及其子进程会继承当前终端导出的代理环境。它用于访问官方 Hugging Face 权重与划分，仍固定原有仓库及提交版本，不重新下载 EchoNet AVI。[AutoDL 官方说明](https://www.autodl.com/docs/network_turbo/)。该服务不保证始终可用；本机检查无法证明实例上的连通性。
+
+若旧任务在 `assets` 阶段出现 `[Errno 101] Network is unreachable`，且状态已经是 `failed`，在实例终端执行上面的完整启动命令即可重试。无需重装环境、清理数据或杀进程。对已经运行的后台任务，在另一个终端执行 `source` 不会改变它的环境。日志采用追加方式，重启后以最新 `STAGE` 时间和 `status.json` 为准，旧错误仍会保留。若启用加速后仍然下载失败，保留新的报错再排查；可再考虑官方文档列出的镜像或上传本地已下载并校验的资源。
 
 **默认不自动关机。**如希望全流程完成或报错后自动关闭实例，在启动命令末尾加 `--shutdown-on-exit`；这会调用 AutoDL 的 `/usr/bin/shutdown`，也可能在早期检查失败时关机。它不释放实例。未加此参数时，流程结束后实例仍在运行，需要自行在控制台关机。强制杀进程、系统崩溃等不能保证执行自动关机。
 
