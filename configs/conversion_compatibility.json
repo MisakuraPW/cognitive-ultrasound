@@ -1,0 +1,199 @@
+{
+  "version": "official_split_compatibility_v1",
+  "splits_sha256": "c6cd542a70d872fcddfe88dd19e161ed4fcba2dcd61337db8b963a06e4d04cab",
+  "pixel_pipeline": "upstream_PIL_L_segment_cached_cubic_unchanged",
+  "cases": {
+    "0X1DFB35BA6E0A7B20.avi": {
+      "sha256": "93b8efa72f12031b2fc0d58d98d40fe8be42b5a8449f98a6996aa6389af4d5a0",
+      "split": "train",
+      "frames": 123,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 5.466666666666668,
+        "right": 2.976470588235288
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 8.682352941176468,
+        "right": 5.360784313725481
+      }
+    },
+    "0X268D722E60E6E7EC.avi": {
+      "sha256": "a28cac0d8fea16cc68e6f4bc1e41b0af4818c465020c08c5d774eb726179832e",
+      "split": "train",
+      "frames": 119,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 0.1333333333333333,
+        "right": 4.129411764705873
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 0.17254901960784313,
+        "right": 6.199999999999985
+      }
+    },
+    "0X4443C1C10CC3B13A.avi": {
+      "sha256": "03d825622a072ce784648a3ed0fba1979b80fc1de484e0dd7fd71ffda314b6c1",
+      "split": "train",
+      "frames": 156,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 0.11372549019607843,
+        "right": 4.058823529411758
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 0.11372549019607843,
+        "right": 5.8117647058823465
+      }
+    },
+    "0X4889B480C7F3DE83.avi": {
+      "sha256": "e285b8e01e35088563cb4f8ea86a3d50fb6acac0799c46073e8a6bf1e3bbacbf",
+      "split": "train",
+      "frames": 112,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 0.09019607843137255,
+        "right": 8.439215686274487
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 0.10980392156862745,
+        "right": 12.678431372548992
+      }
+    },
+    "0X5C43DB9C3DA8C861.avi": {
+      "sha256": "c52c8194aec01fe0aeb48dcca54b9a84d14c3c7c7d088c2feeafd3210829c1e6",
+      "split": "rejected",
+      "frames": 215,
+      "reason": "not_in_official_split_despite_shape_acceptance",
+      "current_shape": {
+        "accepted": true,
+        "left": 1.0392156862745097,
+        "right": 53.76470588235321
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 1.0392156862745097,
+        "right": 53.76470588235321
+      }
+    },
+    "0X6142773DC5AFEEE6.avi": {
+      "sha256": "de2dc1d233484ecc1e7cc2a0fba8740019e9c76a478fb1f376ed3c3dd2f30b54",
+      "split": "train",
+      "frames": 101,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 4.0627450980392155,
+        "right": 3.498039215686267
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 5.8392156862745095,
+        "right": 5.356862745098024
+      }
+    },
+    "0X627232266CC3F5DC.avi": {
+      "sha256": "a2e0d31e7f7adc7ed98b941f08a8d20dc488a2c187f1987ea0f384a06a73da9b",
+      "split": "train",
+      "frames": 198,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 1.003921568627451,
+        "right": 4.380392156862739
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 1.4901960784313724,
+        "right": 7.388235294117633
+      }
+    },
+    "0X6E4159BB40A86E64.avi": {
+      "sha256": "0e297d2dfd4aff6f15a16b3b7b4ed92d28728cfdef47b1efd9544eb6d7c83a60",
+      "split": "rejected",
+      "frames": 221,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": true,
+        "left": 0.22352941176470587,
+        "right": 5.015686274509793
+      },
+      "legacy_shape": {
+        "accepted": false,
+        "left": 0.22352941176470587,
+        "right": 4.9803921568627345
+      }
+    },
+    "0X74B6576AF56AECD4.avi": {
+      "sha256": "2b48384264523e7b6db8d3dd814e4067f963ff271dc9693644e077cc41ad7448",
+      "split": "train",
+      "frames": 88,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 0.10588235294117647,
+        "right": 3.5294117647058783
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 0.12549019607843137,
+        "right": 5.89411764705882
+      }
+    },
+    "0X7533B5CFDF97B569.avi": {
+      "sha256": "73274fe11c6387c45a4d48ac14b1c5b0a9cb30edf05f3adfc4784eecfb54e755",
+      "split": "train",
+      "frames": 171,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 4.0392156862745106,
+        "right": 4.776470588235286
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 6.203921568627449,
+        "right": 7.231372549019591
+      }
+    },
+    "0X7D34DA638DFF03C6.avi": {
+      "sha256": "68f72e8ae65ee70a8a700321ddf627b4912ce589570b244e894279f52a87fcf2",
+      "split": "train",
+      "frames": 147,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 25.98039215686274,
+        "right": 4.34117647058823
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 31.090196078431372,
+        "right": 6.745098039215672
+      }
+    },
+    "0X98217365CE7C868.avi": {
+      "sha256": "6859b6d0faaed81abb91bb20f5977541d4618bbd46651f386b154ceda5545258",
+      "split": "train",
+      "frames": 173,
+      "reason": "historical_grayscale_conflict",
+      "current_shape": {
+        "accepted": false,
+        "left": 0.7294117647058822,
+        "right": 3.5725490196078393
+      },
+      "legacy_shape": {
+        "accepted": true,
+        "left": 1.0313725490196077,
+        "right": 5.917647058823519
+      }
+    }
+  }
+}
