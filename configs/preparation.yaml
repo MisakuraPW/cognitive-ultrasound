@@ -1,0 +1,37 @@
+# Finite preparation suite, not a full reproduction. All caps persist across resume.
+seed: 20260919
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+split_manifest: configs/splits/split.yaml
+checkpoint: checkpoints/official
+max_hours: 12
+phase_hours: {A: 6, B: 3, C: 3}
+job_hours: 1.5
+min_free_gib: 8
+max_output_gib: 8
+budget: 14
+seeds: [42, 31415]
+cohorts: {debug: 2, development: 4, confirmation: 4, train: 8}
+frames: {debug: 8, development: 16, confirmation: 24, train: 16}
+candidates: [official25, official25_fp16, sparse10]
+# Optional implemented variants: sparse5, coarse10. Do not sweep everything by default.
+gate: {speedup: 2.0, psnr_drop: 0.3, ssim_drop: 0.01, mae_ratio: 1.05, worst_psnr_drop: 1.0, correlation_drop: 0.1}
+bf:
+  steps: {codec: 1000, prior: 500, filter: 1000}
+  chunk_steps: 50
+  codec_mae_limit: 0.20
+  prior_mae_ratio: 1.05
+  filter_mae_ratio: 0.98
+  # Protocol checks must pass before training; exceeding these caps does not imply convergence.
+branches: {states_per_case: 2, cases: 2, budgets: [7, 14, 28], seeds: [42, 31415], quality_mae: 0.15}
+risk: {ridge: 1.0, minimum_rows: 64, minimum_cases: 4, minimum_relative_gain: 0.05}
+tbig:
+  # Optional, isolated official installation; no download or large conversion is automatic.
+  python: null
+  repo: null
+  config: null
+  expected_commit: null
+  sequences: []
+  asset_files: []
+  frames: 12
+  cases: 1
+  max_seconds: 3600

@@ -1,0 +1,25 @@
+# Engineering pilot, NOT the senior's original model or a converged research result.
+variant: thesis_inspired_bf_v1
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+split_manifest: configs/splits/split.yaml
+seed: 42
+latent_channels: 8
+width: 16
+delta_limit: 0.25
+groups: [10, 4]
+value_decay: 0.9
+redundancy: 0.5
+redundancy_sigma: 8.0
+residual_sigma: 6.0
+score_weights: {uncertainty: 1.0, change: 0.5, value: 0.2, residual: 0.5, history: 0.2}
+ssim_weight: 0.2
+loss_weights: {rec: 1.0, obs: 0.5, lat: 0.1, unc: 0.05, proj: 0.1}
+learning_rate: 0.0001
+clip_frames: 3
+train_cases: 32
+val_cases: 4
+eval_cases: 4
+eval_frames: 20
+checkpoint_every: 25
+validation_every: 25
+steps: {codec: 100, prior: 100, filter: 200}

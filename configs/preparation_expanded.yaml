@@ -1,0 +1,5 @@
+# Optional later run, never selected by the one-command launcher.
+extends: preparation.yaml
+cohorts: {debug: 2, development: 4, confirmation: 8, train: 32}
+frames: {debug: 24, development: 32, confirmation: 64, train: 32}
+candidates: [official25, official25_fp16, sparse10, sparse5, coarse10]

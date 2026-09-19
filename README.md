@@ -1,6 +1,8 @@
 # Cognitive Ultrasound · CASL 复现基座
 
-本阶段只复现 **Patient-Adaptive Echocardiography Using Cognitive Ultrasound**。保留官方算法，建立可审计实验接口。真实 EchoNet 数据、完整训练和论文数值验收需在你后续安排的云算力阶段完成。合成测试结果不能当作论文复现结果。
+本仓库保留 **Patient-Adaptive Echocardiography Using Cognitive Ultrasound** 的官方复现接口，并提供独立的信念滤波实验初版。完整 CASL 训练和论文数值验收尚未完成；合成测试结果不能当作论文复现结果。
+
+当前按学长论文尝试的新方法见 [信念滤波初版说明](docs/belief_filter.md)：先有界训练 codec 和时序先验，再冻结它们训练更新模块。缺少学长权重和部分结构细节，补充假设均在说明中列出；不会自动启动 CASL 全量训练或评估。
 
 ## 先读这些文件
 
@@ -132,3 +134,9 @@ casl-repro train --smoke
 Windows 的 TensorFlow 对中文路径存在文件系统错误；若在本机检查训练，请使用 ASCII 临时输出，例如 `--output "$env:TEMP/casl-training-smoke"`。本次通过的训练产物已复制到 `checkpoints/synthetic_fp32` 和 `checkpoints/synthetic_amp`，均非正式模型。
 
 下游桥接使用 `tf2jax==0.3.7`：官方 Docker 的 0.3.6 会引用 JAX 0.6 已删除的 `jax.core.ClosedJaxpr`。这里只调整依赖兼容性，不修改 CASL 的选线或重建算法。
+
+## 有界准备性实验（2026-09-19）
+
+服务器一键运行、断点恢复和结果下载见 [准备性实验说明](docs/preparation_suite.md)。
+入口为 `bash scripts/run_preparation.sh start`，配置为 `configs/preparation.yaml`。
+包含 CASL 小样本计时/加速对照、学长式模型分阶段检查、同历史分支及条件风险/预算实验；不运行完整 paper 评估或 CASL 全量训练。
