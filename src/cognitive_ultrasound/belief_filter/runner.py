@@ -16,6 +16,8 @@ from ..provenance import sha256, write_json
 
 
 def validate(cfg):
+    if cfg.get("execution", "eager") not in ("eager", "graph", "auto"):
+        raise ValueError("execution must be eager, graph or auto")
     for key in (
         "latent_channels",
         "width",
@@ -31,6 +33,9 @@ def validate(cfg):
             raise ValueError(f"{key} must be a positive integer")
     if cfg["clip_frames"] < 2:
         raise ValueError("Prior training needs consecutive frames")
+    reset = cfg.get("training_reset_interval", 0)
+    if type(reset) is not int or reset < 0:
+        raise ValueError("training_reset_interval must be a nonnegative integer")
     if not cfg["groups"] or any(type(n) is not int or n < 1 for n in cfg["groups"]):
         raise ValueError("Groups must contain positive integers")
     if sum(cfg["groups"]) > 112:
@@ -57,6 +62,8 @@ def runtime(cpu=False):
 
     if tf.keras.backend.backend() != "tensorflow":
         raise RuntimeError("Run belief filter in a fresh TensorFlow process")
+    # Compare eager/graph using full FP32 kernels rather than backend-dependent TF32 rounding.
+    tf.config.experimental.enable_tensor_float_32_execution(False)
     for gpu in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(gpu, True)
     if not cpu and not tf.config.list_physical_devices("GPU"):
@@ -164,6 +171,8 @@ def loss_for_clip(models, clip, start, stage, cfg):
         return tf.add_n(terms) / len(terms)
     memory, terms = initial_memory(models), []
     for frame, truth in enumerate(clip):
+        if cfg.get("training_reset_interval", 0) and frame % cfg["training_reset_interval"] == 0:
+            memory = initial_memory(models)
         # No teacher-forced target memory. Truth is used only by oracle and supervised loss.
         memory, state = step(
             models,
@@ -179,7 +188,37 @@ def loss_for_clip(models, clip, start, stage, cfg):
 
 
 def train(cfg, output, stage, initialize=None, resume=False, cpu=False, stop_after=None):
+    if not resume and output.exists() and any(output.iterdir()):
+        raise FileExistsError("Use an empty output or --resume; existing results are preserved")
+    execution = cfg.get("execution", "eager")
+    receipt = None
+    if execution == "auto":
+        from .preflight import calibrate
+
+        receipt = calibrate(
+            cfg,
+            stage,
+            output.parent / (output.name + ".preflight"),
+            output / "checkpoint.npz" if resume else initialize,
+            cpu=cpu,
+            remaining_steps=stop_after,
+            fresh_optimizer=not resume and cfg.get("filter_finetune", False),
+        )
+        execution = receipt["chosen"]["execution"]
+        threads = str(receipt["chosen"]["threads"])
+        os.environ.update(
+            OMP_NUM_THREADS=threads, TF_NUM_INTRAOP_THREADS=threads, TF_NUM_INTEROP_THREADS="1"
+        )
     tf = runtime(cpu)
+    if receipt and not cpu:
+        # Apply the measured choice explicitly, before TensorFlow initializes the devices.
+        try:
+            tf.config.threading.set_intra_op_parallelism_threads(receipt["chosen"]["threads"])
+            tf.config.threading.set_inter_op_parallelism_threads(1)
+        except RuntimeError as error:
+            raise RuntimeError(
+                "Automatic training must start in a fresh TensorFlow process"
+            ) from error
     from .core import Models
 
     tf.keras.utils.set_random_seed(cfg["seed"])
@@ -214,6 +253,8 @@ def train(cfg, output, stage, initialize=None, resume=False, cpu=False, stop_aft
                 raise ValueError("Frozen components require a trained parent checkpoint")
             parent = load_checkpoint(initialize, models)
             expected = {"prior": "codec", "filter": "prior"}[stage]
+            if stage == "filter" and cfg.get("filter_finetune", False):
+                expected = "filter"
             if parent["stage"] != expected or parent["status"] != "completed":
                 raise ValueError(f"Expected completed {expected} checkpoint")
             if parent["identity"]["split_sha256"] != identity["split_sha256"]:
@@ -237,6 +278,9 @@ def train(cfg, output, stage, initialize=None, resume=False, cpu=False, stop_aft
         "variant": "thesis-inspired; no senior or official CASL weights",
         "trainable_parameters": sum(int(np.prod(v.shape)) for v in variables),
         "selection": "seeded video subset; chronological clips; stop-gradient across frames",
+        "execution": execution,
+        "preflight_fingerprint": receipt["fingerprint"] if receipt else None,
+        "preflight_receipt_id": receipt["receipt_id"] if receipt else None,
     }
     # A killed pilot must also be resumable before its first periodic checkpoint.
     if not resume:
@@ -246,21 +290,29 @@ def train(cfg, output, stage, initialize=None, resume=False, cpu=False, stop_aft
         f"TRAIN {stage}: {start}/{total}; parameters={metadata['trainable_parameters']}", flush=True
     )
     timings = []
+    compiled_update = compiled_loss = None
+    if execution == "graph":
+        from .kernels import make_kernels
+
+        compiled_update, compiled_loss = make_kernels(models, optimizer, stage, cfg)
     try:
         with (output / "training.jsonl").open("a", encoding="utf-8") as log:
             for index in range(start, end):
                 t0 = time.perf_counter()
                 clip, frame_start = training.sample(cfg["seed"] + index)
-                with tf.GradientTape() as tape:
-                    loss = loss_for_clip(models, clip, frame_start, stage, cfg)
-                tf.debugging.assert_all_finite(loss, "Nonfinite loss")
-                grads = tape.gradient(loss, variables)
-                if any(g is None for g in grads):
-                    raise RuntimeError("Missing gradient")
-                for gradient in grads:
-                    tf.debugging.assert_all_finite(gradient, "Nonfinite gradient")
-                grads, _ = tf.clip_by_global_norm(grads, 1.0)
-                optimizer.apply_gradients(zip(grads, variables))
+                if compiled_update is not None:
+                    loss = compiled_update(clip, tf.constant(frame_start, tf.int32))
+                else:
+                    with tf.GradientTape() as tape:
+                        loss = loss_for_clip(models, clip, frame_start, stage, cfg)
+                    tf.debugging.assert_all_finite(loss, "Nonfinite loss")
+                    grads = tape.gradient(loss, variables)
+                    if any(g is None for g in grads):
+                        raise RuntimeError("Missing gradient")
+                    for gradient in grads:
+                        tf.debugging.assert_all_finite(gradient, "Nonfinite gradient")
+                    grads, _ = tf.clip_by_global_norm(grads, 1.0)
+                    optimizer.apply_gradients(zip(grads, variables))
                 record = {
                     "step": index + 1,
                     "loss": float(loss),
@@ -269,7 +321,11 @@ def train(cfg, output, stage, initialize=None, resume=False, cpu=False, stop_aft
                 if (index + 1) % cfg["validation_every"] == 0 or index + 1 == end:
                     losses = [
                         float(
-                            loss_for_clip(
+                            compiled_loss(
+                                validation.read(i, 0, cfg["clip_frames"]), tf.constant(0, tf.int32)
+                            )
+                            if compiled_loss is not None
+                            else loss_for_clip(
                                 models, validation.read(i, 0, cfg["clip_frames"]), 0, stage, cfg
                             )
                         )

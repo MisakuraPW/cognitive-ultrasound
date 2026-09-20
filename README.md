@@ -6,11 +6,14 @@
 
 ## 先读这些文件
 
+- **当前一次性准备收尾入口：[最后一批准备工作](docs/preparation_closure.md)**：固定 18 项任务，补多预算覆盖、公平闭环与 BF 历史对照；结束后统一交接，不自动追加实验。
+- [默认加速与运行前检查](docs/accelerated_experiments.md)：硬件预检与已有加速凭据。
+
 - `docs/CASL_architecture.md`：论文、上游代码、执行计划的对应关系与必要纠正。
 - `docs/diffusion_training.md`：训练目标、参数、AMP、断点语义。
-- `docs/git_workflow.md`：本地 Git 配置位置、创建空远程仓库和关联步骤。
+- `docs/git_workflow.md`：Git 配置、提交推送与服务器更新；代码统一走 Git，不再上传源码包。
 - `docs/autodl_preparation.md`：复用已有云端 EchoNet、只读检查、独立路径与后续运行顺序。
-- **`docs/autodl_runbook.md`：当前推荐入口，从开实例、安装 requirement.txt 到完整评估、可选训练和下载结果。**
+- `docs/autodl_runbook.md`：旧版完整复现流程留档；当前不默认运行其中完整评估与训练。
 - `docs/reproduction_protocol.md`：数据划分、指标、预算、计时及验收标准。
 - `reports/CASL_reproduction_report.md`：目前完成程度与尚未运行的项目。
 - `reports/environment.md`：实际本地环境；不是 RTX 4090 报告。

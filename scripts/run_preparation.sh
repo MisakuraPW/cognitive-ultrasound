@@ -3,9 +3,10 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT_DIR="$PWD"
 OLD_REPO="${CASL_EXISTING_REPO:-/root/autodl-tmp/cognitive-ultrasound}"
-OUTPUT="${PREPARATION_OUTPUT:-/root/autodl-tmp/outputs_casl/preparation_v1}"
-CONFIG="${PREPARATION_CONFIG:-$ROOT_DIR/configs/preparation.yaml}"
+OUTPUT="${PREPARATION_OUTPUT:-/root/autodl-tmp/outputs_casl/preparation_auto_v2}"
+CONFIG="${PREPARATION_CONFIG:-$ROOT_DIR/configs/preparation_auto.yaml}"
 MODE="${1:-start}"
+MODULE="${PREPARATION_MODULE:-cognitive_ultrasound.preparation}"
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate casl
 export PYTHONPATH="$ROOT_DIR/src"
@@ -22,16 +23,16 @@ done
 LOG="${OUTPUT}.console.log"
 mkdir -p "$(dirname "$OUTPUT")"
 case "$MODE" in
-    plan) python -m cognitive_ultrasound.preparation plan --config "$CONFIG" --output "$OUTPUT" ;;
+    plan) python -m "$MODULE" plan --config "$CONFIG" --output "$OUTPUT" ;;
     stop) mkdir -p "$OUTPUT"; touch "$OUTPUT/STOP"; echo "Stop requested. Completed frames/checkpoints retained." ;;
     status) test -f "$OUTPUT/status.json" && cat "$OUTPUT/status.json" ;;
-    report) python -m cognitive_ultrasound.preparation report --output "$OUTPUT" ;;
+    report) python -m "$MODULE" report --output "$OUTPUT" ;;
     foreground)
         python scripts/check_gpu.py --output "${OUTPUT}.gpu.json"
         ARGS=()
         if [[ -f "$OUTPUT/identity.json" ]]; then ARGS+=(--resume); fi
         if [[ "${PREPARATION_RETRY_FAILED:-0}" == 1 ]]; then ARGS+=(--retry-failed); fi
-        python -m cognitive_ultrasound.preparation run --config "$CONFIG" --output "$OUTPUT" "${ARGS[@]}"
+        python -m "$MODULE" run --config "$CONFIG" --output "$OUTPUT" "${ARGS[@]}"
         ;;
     start|resume)
         if [[ -f "$OUTPUT/STOP" ]]; then

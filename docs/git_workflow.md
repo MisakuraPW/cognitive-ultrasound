@@ -27,3 +27,22 @@ AutoDL 上可用 `git clone https://github.com/MisakuraPW/cognitive-ultrasound.g
 `.gitignore` 排除原始/处理数据、checkpoint、日志、结果、大型缓存、`.env`、本地配置与虚拟环境；固定患者清单、代码和报告进入版本控制。迁移机器时通过依赖安装和固定资产下载恢复计算环境。
 
 以后每次实验保留配置、Git commit、模型/数据哈希与实际环境，结果放在单独 output 目录。改动基线算法前先创建分支；研究扩展应与已经验证的 CASL 基线分开。
+
+## 2026-09-20 起的固定约定
+
+用户明确要求：以后代码提交、备份与服务器更新均走 Git，不再交付或上传代码 tar/zip。历史打包脚本和包仅保留作记录；实验结果、权重及数据不进 Git，仍可单独传输。
+
+每次更新：检查差异和必要测试 → 提交代码/配置/文档 → 推送 origin → 服务器在旧任务结束后 `git pull --ff-only origin main` → 记录提交号 → 启动新实验。工作区有修改或分支分叉时先检查和保留，不自动 reset、clean、stash 或强推。运行期间固定源码版本；续跑使用原提交和原配置。
+
+已有 AutoDL 仓库的本次完整指令见 [准备阶段收尾](preparation_closure.md)。新实例获取代码：
+
+```bash
+git clone https://github.com/MisakuraPW/cognitive-ultrasound.git /root/autodl-tmp/cognitive-ultrasound
+cd /root/autodl-tmp/cognitive-ultrasound
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate casl
+python scripts/bootstrap.py
+git log -1 --format='%H %s'
+```
+
+新实例还需恢复既有 casl 环境、`checkpoints/official`、转换数据及前批输出；Git 不负责携带这些大文件。已有实例无需重复 clone/bootstrap 或重装依赖。想同时跑旧版本和开发新版本时，使用不同 clone 和独立输出目录。

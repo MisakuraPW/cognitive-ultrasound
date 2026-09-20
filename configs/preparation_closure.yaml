@@ -1,0 +1,22 @@
+# Final bounded preparation batch. No automatic scientific follow-up/search.
+extends: preparation_auto.yaml
+seed: 20260920
+max_hours: 3
+phase_hours: {A: 0.5, B: 1.25, C: 1.25}
+job_hours: 0.5
+min_free_gib: 10
+max_output_gib: 6
+cohorts: {debug: 2, development: 4, confirmation: 8, train: 32}
+frames: {debug: 12, development: 24, confirmation: 32, train: 24}
+candidates: [official25_fp16]
+closure:
+  previous_runs:
+    - /root/autodl-tmp/outputs_casl/preparation_v1
+    - /root/autodl-tmp/outputs_casl/preparation_followup_v3
+  bf_source: /root/autodl-tmp/outputs_casl/preparation_v1
+  budgets: [7, 14, 28]
+  bf_steps: 200
+  bf_clip_frames: 12
+  bf_eval_frames: 32
+  quality_mae: 0.15
+  cpu_only: false

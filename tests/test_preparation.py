@@ -277,3 +277,23 @@ def test_offline_report_produces_inspectable_figures_and_csv(tmp_path):
 
     image = Image.open(tmp_path / "jobs/debug_reference/examples.png")
     assert image.width > 1000 and image.height > 500
+
+
+@pytest.mark.parametrize("prediction_key", ["model", "online"])
+def test_report_supports_qualification_and_frozen_diagnosis(tmp_path, prediction_key):
+    from cognitive_ultrasound.preparation.analysis import report
+
+    folder = tmp_path / "jobs" / "bf_diagnosis"
+    target = np.zeros((112, 112, 1), np.float32)
+    arrays = dict(target=target, mask=target, interpolation=target)
+    arrays[prediction_key] = target
+    if prediction_key == "online":
+        arrays.update(privileged_previous_truth=target, full_input_codec=target)
+    common.atomic_npz(folder / "case/frame_0000.npz", **arrays)
+    common.atomic_json(folder / "result.json", dict(status="completed"))
+    common.atomic_json(tmp_path / "status.json", dict(jobs={}))
+    before = (folder / "case/frame_0000.npz").read_bytes()
+    report(tmp_path)
+    assert (folder / "examples.png").stat().st_size > 1000
+    assert "bf_diagnosis" in (tmp_path / "REPORT.md").read_text(encoding="utf-8")
+    assert (folder / "case/frame_0000.npz").read_bytes() == before

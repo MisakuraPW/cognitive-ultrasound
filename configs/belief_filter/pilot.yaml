@@ -1,5 +1,6 @@
 # Engineering pilot, NOT the senior's original model or a converged research result.
 variant: thesis_inspired_bf_v1
+execution: auto
 data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
 split_manifest: configs/splits/split.yaml
 seed: 42

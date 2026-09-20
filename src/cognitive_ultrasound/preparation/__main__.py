@@ -10,8 +10,8 @@ from .common import emit, normalized_config, read_json
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["run", "worker", "report", "plan"])
-    parser.add_argument("--config", default=str(ROOT / "configs/preparation.yaml"))
-    parser.add_argument("--output", default="/root/autodl-tmp/outputs_casl/preparation_v1")
+    parser.add_argument("--config", default=str(ROOT / "configs/preparation_auto.yaml"))
+    parser.add_argument("--output", default="/root/autodl-tmp/outputs_casl/preparation_auto_v2")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--task")

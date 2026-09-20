@@ -1,0 +1,10 @@
+# One bounded diagnostic follow-up; no CASL retraining or threshold search.
+extends: preparation_auto.yaml
+seed: 20260920
+max_hours: 1.5
+phase_hours: {A: 0.6, B: 0.3, C: 0.6}
+job_hours: 0.4
+cohorts: {debug: 2, development: 4, confirmation: 8, train: 32}
+frames: {debug: 8, development: 32, confirmation: 56, train: 32}
+candidates: [official25_fp16]
+followup_source: /root/autodl-tmp/outputs_casl/preparation_v1

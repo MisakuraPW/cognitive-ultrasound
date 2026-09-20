@@ -25,6 +25,8 @@ def configuration(cfg, manifest):
             "val": manifest["cohorts"]["development"],
         },
     )
+    if "execution" in cfg["bf"]:
+        result["execution"] = cfg["bf"]["execution"]
     return result
 
 
@@ -50,7 +52,9 @@ def train_stage(task, cfg, manifest, output, root):
             initialize,
             resume=checkpoint.exists(),
             cpu=task.get("cpu", False),
-            stop_after=cfg["bf"]["chunk_steps"],
+            stop_after=None
+            if model_cfg.get("execution") in ("graph", "auto")
+            else cfg["bf"]["chunk_steps"],
         )
     atomic_json(
         output / "result.json",

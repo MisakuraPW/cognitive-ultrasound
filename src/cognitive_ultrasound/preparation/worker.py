@@ -8,7 +8,11 @@ def execute(root, task):
     output = root / "jobs" / task["id"]
     output.mkdir(parents=True, exist_ok=True)
     kind = task["kind"]
-    if kind == "reuse":
+    if kind.startswith("closure_"):
+        from .closure import dispatch
+
+        dispatch(task, cfg, manifest, output, root)
+    elif kind == "reuse":
         import shutil
 
         from .common import atomic_json
@@ -49,5 +53,9 @@ def execute(root, task):
         from .analysis import parity
 
         parity(root, output)
+    elif kind == "bf_diagnose":
+        from .followup import diagnose_filter
+
+        diagnose_filter(task, cfg, output)
     else:
         raise ValueError(f"Unknown task kind {kind}")

@@ -18,13 +18,18 @@ def sha(file):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--name", default="cognitive-ultrasound-preparation-20260919-v1")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     destination = Path(args.output).resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    prefix = "cognitive-ultrasound-preparation-20260919-v1"
+    prefix = args.name
+    if not prefix or any(
+        c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in prefix
+    ):
+        parser.error("--name must be a simple directory name")
     files = []
-    for directory in ("src", "scripts", "configs", "docs", "tests"):
+    for directory in ("src", "scripts", "configs", "docs", "tests", "requirements"):
         files.extend(
             f
             for f in (root / directory).rglob("*")
@@ -37,6 +42,13 @@ def main():
         and (f.name in ("README.md", "pyproject.toml", ".gitmodules") or "requirement" in f.name)
     )
     files.append(root / "reports/preparation_local_check.md")
+    closure_report = root / "reports/preparation_closure_local_check.md"
+    if closure_report.exists():
+        files.append(closure_report)
+    for suffix in ("md", "json"):
+        acceleration_report = root / ("reports/hardware_autotune_20260919." + suffix)
+        if acceleration_report.exists():
+            files.append(acceleration_report)
     hashes = {f.relative_to(root).as_posix(): sha(f) for f in sorted(files)}
     archive = destination / (prefix + ".tar.gz")
     with tarfile.open(archive, "w:gz") as tar:

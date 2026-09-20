@@ -233,7 +233,7 @@ def run_trajectory(task, cfg, manifest, output):
                 continue
             if adapter is None:
                 t0 = time.perf_counter()
-                adapter = Adapter(cfg, variant)
+                adapter = Adapter(cfg, variant, task.get("method", "casl"))
                 atomic_json(output / "load.json", dict(model_setup_s=time.perf_counter() - t0))
             directory.mkdir(parents=True, exist_ok=True)
             adapter.reset(case_seed(seed, name))

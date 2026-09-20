@@ -13,6 +13,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from ..config import CASL_COMMIT, ROOT, ZEA_COMMIT
+from ..hardware import cpu_limit, snapshot
 from ..provenance import sha256
 from .common import (
     atomic_json,
@@ -160,13 +161,16 @@ class Coordinator:
             },
             casl_commit=CASL_COMMIT,
             zea_commit=ZEA_COMMIT,
+            hardware=snapshot(),
         )
         fingerprint = digest(identity)
         if (root / "identity.json").exists():
             if not self.resume:
                 raise FileExistsError("Existing run: use --resume; files are preserved")
             if read_json(root / "identity.json")["fingerprint"] != fingerprint:
-                raise ValueError("Code/config/checkpoint changed; use a new output directory")
+                raise ValueError(
+                    "Code/config/checkpoint/hardware changed; use a new output directory for fresh calibration; old results are preserved"
+                )
             self.state = read_json(root / "status.json")
             import psutil
 
@@ -219,6 +223,11 @@ class Coordinator:
 
     def save(self):
         atomic_json(self.root / "status.json", self.state)
+
+    def render_report(self):
+        from .analysis import report
+
+        report(self.root)
 
     def elapsed(self, phase=None):
         return sum(
@@ -275,9 +284,9 @@ class Coordinator:
             PYTHONPATH=str(ROOT / "src"),
             PYTHONUNBUFFERED="1",
             PYTHONUTF8="1",
-            OMP_NUM_THREADS="4",
-            TF_NUM_INTRAOP_THREADS="4",
-            TF_NUM_INTEROP_THREADS="2",
+            OMP_NUM_THREADS=str(min(4, cpu_limit())),
+            TF_NUM_INTRAOP_THREADS=str(min(4, cpu_limit())),
+            TF_NUM_INTEROP_THREADS="1",
             XLA_PYTHON_CLIENT_PREALLOCATE="false",
             MPLBACKEND="Agg",
             HF_HUB_OFFLINE="1",
@@ -492,8 +501,8 @@ class Coordinator:
         report(root)
 
 
-def run(cfg, output, resume=False, retry_failed=False):
-    coordinator = Coordinator(cfg, output, resume, retry_failed)
+def run(cfg, output, resume=False, retry_failed=False, coordinator_type=Coordinator):
+    coordinator = coordinator_type(cfg, output, resume, retry_failed)
     with run_lock(coordinator.root):
         coordinator.initialize()
         handlers = {}
@@ -506,9 +515,11 @@ def run(cfg, output, resume=False, retry_failed=False):
         except BaseException as error:
             coordinator.state.update(status="failed", error=f"{type(error).__name__}: {error}")
             coordinator.save()
-            from .analysis import report
-
-            report(coordinator.root)
+            try:
+                coordinator.render_report()
+            except Exception as report_error:
+                coordinator.state["report_error"] = f"{type(report_error).__name__}: {report_error}"
+                coordinator.save()
             raise
         finally:
             for sig, handler in handlers.items():

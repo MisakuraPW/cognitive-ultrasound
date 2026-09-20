@@ -1,0 +1,893 @@
+{
+  "codec": {
+    "receipt_id": "81be505221ffea3d-1789820006613091145",
+    "identity": {
+      "hardware": {
+        "platform": "Linux-5.15.0-125-generic-x86_64-with-glibc2.35",
+        "python": "3.10.21",
+        "cpu_model": "x86_64",
+        "cpu_limit": 16,
+        "memory_limit_bytes": 128849018880,
+        "gpu": "NVIDIA GeForce RTX 4090, GPU-48868a73-1761-1c9f-b462-662426423b8d, 24564 MiB, 580.76.05",
+        "visible_devices": null,
+        "packages": {
+          "tensorflow": "2.20.0",
+          "keras": "3.12.4",
+          "jax": "0.6.2",
+          "jaxlib": "0.6.2",
+          "numpy": "2.2.4"
+        }
+      },
+      "config": {
+        "variant": "thesis_inspired_bf_v1",
+        "execution": "auto",
+        "data_root": "/root/autodl-tmp/datasets/CASL-EchoNet-polar",
+        "split_manifest": "/root/autodl-tmp/cognitive-ultrasound/configs/splits/split.yaml",
+        "seed": 20260919,
+        "latent_channels": 8,
+        "width": 16,
+        "delta_limit": 0.25,
+        "groups": [
+          10,
+          4
+        ],
+        "value_decay": 0.9,
+        "redundancy": 0.5,
+        "redundancy_sigma": 8.0,
+        "residual_sigma": 6.0,
+        "score_weights": {
+          "uncertainty": 1.0,
+          "change": 0.5,
+          "value": 0.2,
+          "residual": 0.5,
+          "history": 0.2
+        },
+        "ssim_weight": 0.2,
+        "loss_weights": {
+          "rec": 1.0,
+          "obs": 0.5,
+          "lat": 0.1,
+          "unc": 0.05,
+          "proj": 0.1
+        },
+        "learning_rate": 0.0001,
+        "clip_frames": 3,
+        "train_cases": 32,
+        "val_cases": 4,
+        "eval_cases": 4,
+        "eval_frames": 20,
+        "checkpoint_every": 50,
+        "validation_every": 50,
+        "steps": {
+          "codec": 1000,
+          "prior": 500,
+          "filter": 1000
+        },
+        "training_policy": "uniform",
+        "case_names": {
+          "train": [
+            "0X45980563E8E0859C.hdf5",
+            "0XB6D8F3BAB7D9415.hdf5",
+            "0X48C35748D6FE9BD.hdf5",
+            "0XFC6499D603B9E1E.hdf5",
+            "0X5AE30E7828920A82.hdf5",
+            "0X7CA15DC6A1C6DA13.hdf5",
+            "0X5ACD4D6566521DE1.hdf5",
+            "0X22F64BF092575F44.hdf5"
+          ],
+          "val": [
+            "0X115841DA5E9DC64D.hdf5",
+            "0X1225C19111629C6F.hdf5",
+            "0X108B4B26B48E417B.hdf5",
+            "0X13381981E598316E.hdf5"
+          ]
+        }
+      },
+      "stage": "codec",
+      "sources": {
+        "__init__.py": "474f15678e44fb2963aa5adeedf7f9172b0a464edce65f818c4e0872c36bee7f",
+        "__main__.py": "982976b5921afbc741885fea6bf3377366cd60bec745f35f456b973dc67f08cd",
+        "core.py": "db7a72af52b0118a3bece0c01455b9c9ddbe9be1df95053696a5d44c75fe35dc",
+        "kernels.py": "878461406ba1793462f6001e11ffabc1d10fcd2d8d890f843795e2d298244fd7",
+        "preflight.py": "256d7b45ce99ad71108e36cc860cafbeab428404dd884f1efbdde1d51f4a2187",
+        "runner.py": "99b987b2066a094fa74a781c9063f2bfe629d4ead994771acbefaae1a31c2fa5"
+      },
+      "checkpoint_sha256": "6c52fa8ef7efa8a4b275cc4863ab473db5dfba62fff50976aced498cace0dd33"
+    },
+    "fingerprint": "81be505221ffea3d4cc852c8c047efc74fdb4264e5bb7ca6856be49e375ecec3",
+    "chosen": {
+      "execution": "graph",
+      "threads": 1,
+      "projected_s": 26.188417676836252
+    },
+    "candidates": [
+      {
+        "threads": 1,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 2.275014314800501,
+            "median_s": 0.1491493061184883,
+            "samples_s": [
+              0.1707656793296337,
+              0.1491493061184883,
+              0.14459215477108955,
+              0.15227438509464264,
+              0.14663583412766457
+            ],
+            "peak_allocator_bytes": 33244416,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 1.469258151948452,
+            "median_s": 0.024743903428316116,
+            "samples_s": [
+              0.024482741951942444,
+              0.02336014434695244,
+              0.024743903428316116,
+              0.032553717494010925,
+              0.034928999841213226
+            ],
+            "peak_allocator_bytes": 22345984,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.13563211262226105,
+            0.1733260303735733
+          ],
+          "graph": [
+            0.13563212752342224,
+            0.17332616448402405
+          ]
+        }
+      },
+      {
+        "threads": 4,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 2.250181343406439,
+            "median_s": 0.14833100885152817,
+            "samples_s": [
+              0.14812786877155304,
+              0.14833100885152817,
+              0.14659420773386955,
+              0.15204478055238724,
+              0.14958146587014198
+            ],
+            "peak_allocator_bytes": 33244416,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 1.4091415256261826,
+            "median_s": 0.030233662575483322,
+            "samples_s": [
+              0.030233662575483322,
+              0.02335667982697487,
+              0.02361953631043434,
+              0.03064720705151558,
+              0.03394153341650963
+            ],
+            "peak_allocator_bytes": 22346496,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.13563211262226105,
+            0.1733260154724121
+          ],
+          "graph": [
+            0.13563212752342224,
+            0.17332614958286285
+          ]
+        }
+      },
+      {
+        "threads": 8,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 2.244624312967062,
+            "median_s": 0.14835016801953316,
+            "samples_s": [
+              0.14990219473838806,
+              0.14704540744423866,
+              0.1528872326016426,
+              0.14835016801953316,
+              0.14751660451292992
+            ],
+            "peak_allocator_bytes": 33248512,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 1.4243967682123184,
+            "median_s": 0.026905104517936707,
+            "samples_s": [
+              0.025744017213582993,
+              0.023623935878276825,
+              0.026905104517936707,
+              0.03319738432765007,
+              0.03025035932660103
+            ],
+            "peak_allocator_bytes": 22342144,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.13563211262226105,
+            0.1733260154724121
+          ],
+          "graph": [
+            0.13563212752342224,
+            0.17332616448402405
+          ]
+        }
+      }
+    ],
+    "remaining_steps": 1000,
+    "calibration_wall_s": 37.71476748585701,
+    "scope": "Fastest passing tested candidate, not a global optimum; FP32 and objective unchanged",
+    "limits": "Two parity updates and five timed clips; not proof of full-training equivalence"
+  },
+  "prior": {
+    "receipt_id": "415d86860587f20e-1789820044450976454",
+    "identity": {
+      "hardware": {
+        "platform": "Linux-5.15.0-125-generic-x86_64-with-glibc2.35",
+        "python": "3.10.21",
+        "cpu_model": "x86_64",
+        "cpu_limit": 16,
+        "memory_limit_bytes": 128849018880,
+        "gpu": "NVIDIA GeForce RTX 4090, GPU-48868a73-1761-1c9f-b462-662426423b8d, 24564 MiB, 580.76.05",
+        "visible_devices": null,
+        "packages": {
+          "tensorflow": "2.20.0",
+          "keras": "3.12.4",
+          "jax": "0.6.2",
+          "jaxlib": "0.6.2",
+          "numpy": "2.2.4"
+        }
+      },
+      "config": {
+        "variant": "thesis_inspired_bf_v1",
+        "execution": "auto",
+        "data_root": "/root/autodl-tmp/datasets/CASL-EchoNet-polar",
+        "split_manifest": "/root/autodl-tmp/cognitive-ultrasound/configs/splits/split.yaml",
+        "seed": 20260919,
+        "latent_channels": 8,
+        "width": 16,
+        "delta_limit": 0.25,
+        "groups": [
+          10,
+          4
+        ],
+        "value_decay": 0.9,
+        "redundancy": 0.5,
+        "redundancy_sigma": 8.0,
+        "residual_sigma": 6.0,
+        "score_weights": {
+          "uncertainty": 1.0,
+          "change": 0.5,
+          "value": 0.2,
+          "residual": 0.5,
+          "history": 0.2
+        },
+        "ssim_weight": 0.2,
+        "loss_weights": {
+          "rec": 1.0,
+          "obs": 0.5,
+          "lat": 0.1,
+          "unc": 0.05,
+          "proj": 0.1
+        },
+        "learning_rate": 0.0001,
+        "clip_frames": 3,
+        "train_cases": 32,
+        "val_cases": 4,
+        "eval_cases": 4,
+        "eval_frames": 20,
+        "checkpoint_every": 50,
+        "validation_every": 50,
+        "steps": {
+          "codec": 1000,
+          "prior": 500,
+          "filter": 1000
+        },
+        "training_policy": "uniform",
+        "case_names": {
+          "train": [
+            "0X45980563E8E0859C.hdf5",
+            "0XB6D8F3BAB7D9415.hdf5",
+            "0X48C35748D6FE9BD.hdf5",
+            "0XFC6499D603B9E1E.hdf5",
+            "0X5AE30E7828920A82.hdf5",
+            "0X7CA15DC6A1C6DA13.hdf5",
+            "0X5ACD4D6566521DE1.hdf5",
+            "0X22F64BF092575F44.hdf5"
+          ],
+          "val": [
+            "0X115841DA5E9DC64D.hdf5",
+            "0X1225C19111629C6F.hdf5",
+            "0X108B4B26B48E417B.hdf5",
+            "0X13381981E598316E.hdf5"
+          ]
+        }
+      },
+      "stage": "prior",
+      "sources": {
+        "__init__.py": "474f15678e44fb2963aa5adeedf7f9172b0a464edce65f818c4e0872c36bee7f",
+        "__main__.py": "982976b5921afbc741885fea6bf3377366cd60bec745f35f456b973dc67f08cd",
+        "core.py": "db7a72af52b0118a3bece0c01455b9c9ddbe9be1df95053696a5d44c75fe35dc",
+        "kernels.py": "878461406ba1793462f6001e11ffabc1d10fcd2d8d890f843795e2d298244fd7",
+        "preflight.py": "256d7b45ce99ad71108e36cc860cafbeab428404dd884f1efbdde1d51f4a2187",
+        "runner.py": "99b987b2066a094fa74a781c9063f2bfe629d4ead994771acbefaae1a31c2fa5"
+      },
+      "checkpoint_sha256": "69e47ff1da3e98983784bdc6adb2a5d9769a4a73f86d9d085f48c0dce2aca87b"
+    },
+    "fingerprint": "415d86860587f20ed2f7a434ba330a7bf30a521822165d49b5e73835b0e605fb",
+    "chosen": {
+      "execution": "graph",
+      "threads": 1,
+      "projected_s": 11.369875203818083
+    },
+    "candidates": [
+      {
+        "threads": 1,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 2.4133669957518578,
+            "median_s": 0.17190488055348396,
+            "samples_s": [
+              0.17893408983945847,
+              0.17322565987706184,
+              0.170641727745533,
+              0.17190488055348396,
+              0.16690755262970924
+            ],
+            "peak_allocator_bytes": 20637440,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 1.5303484238684177,
+            "median_s": 0.019718490540981293,
+            "samples_s": [
+              0.019934237003326416,
+              0.01895228773355484,
+              0.01906317099928856,
+              0.019718490540981293,
+              0.020899035036563873
+            ],
+            "peak_allocator_bytes": 9157376,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.2028007209300995,
+            0.24083732068538666
+          ],
+          "graph": [
+            0.20280075073242188,
+            0.2408374696969986
+          ]
+        }
+      },
+      {
+        "threads": 4,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 2.4099284671247005,
+            "median_s": 0.17360178753733635,
+            "samples_s": [
+              0.17337898164987564,
+              0.17506566643714905,
+              0.17360178753733635,
+              0.17443106323480606,
+              0.17320292815566063
+            ],
+            "peak_allocator_bytes": 20637440,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 1.5527131780982018,
+            "median_s": 0.0241471529006958,
+            "samples_s": [
+              0.0241471529006958,
+              0.019181665033102036,
+              0.019341405481100082,
+              0.02535378932952881,
+              0.027084048837423325
+            ],
+            "peak_allocator_bytes": 9157376,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.2028007209300995,
+            0.24083732068538666
+          ],
+          "graph": [
+            0.20280075073242188,
+            0.2408374696969986
+          ]
+        }
+      },
+      {
+        "threads": 8,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 2.3869177103042603,
+            "median_s": 0.17391213402152061,
+            "samples_s": [
+              0.17466950044035912,
+              0.17615460604429245,
+              0.17163097858428955,
+              0.17391213402152061,
+              0.1718326285481453
+            ],
+            "peak_allocator_bytes": 20637440,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 1.5468104965984821,
+            "median_s": 0.026813238859176636,
+            "samples_s": [
+              0.023508824408054352,
+              0.023316826671361923,
+              0.026813238859176636,
+              0.03276348486542702,
+              0.030478961765766144
+            ],
+            "peak_allocator_bytes": 9157376,
+            "headroom_ok": true,
+            "free_mib": 23533.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.2028007209300995,
+            0.24083732068538666
+          ],
+          "graph": [
+            0.20280075073242188,
+            0.2408374696969986
+          ]
+        }
+      }
+    ],
+    "remaining_steps": 500,
+    "calibration_wall_s": 38.42197574302554,
+    "scope": "Fastest passing tested candidate, not a global optimum; FP32 and objective unchanged",
+    "limits": "Two parity updates and five timed clips; not proof of full-training equivalence"
+  },
+  "filter": {
+    "receipt_id": "3d4accf8c613ef15-1789820082987714969",
+    "identity": {
+      "hardware": {
+        "platform": "Linux-5.15.0-125-generic-x86_64-with-glibc2.35",
+        "python": "3.10.21",
+        "cpu_model": "x86_64",
+        "cpu_limit": 16,
+        "memory_limit_bytes": 128849018880,
+        "gpu": "NVIDIA GeForce RTX 4090, GPU-48868a73-1761-1c9f-b462-662426423b8d, 24564 MiB, 580.76.05",
+        "visible_devices": null,
+        "packages": {
+          "tensorflow": "2.20.0",
+          "keras": "3.12.4",
+          "jax": "0.6.2",
+          "jaxlib": "0.6.2",
+          "numpy": "2.2.4"
+        }
+      },
+      "config": {
+        "variant": "thesis_inspired_bf_v1",
+        "execution": "auto",
+        "data_root": "/root/autodl-tmp/datasets/CASL-EchoNet-polar",
+        "split_manifest": "/root/autodl-tmp/cognitive-ultrasound/configs/splits/split.yaml",
+        "seed": 20260919,
+        "latent_channels": 8,
+        "width": 16,
+        "delta_limit": 0.25,
+        "groups": [
+          10,
+          4
+        ],
+        "value_decay": 0.9,
+        "redundancy": 0.5,
+        "redundancy_sigma": 8.0,
+        "residual_sigma": 6.0,
+        "score_weights": {
+          "uncertainty": 1.0,
+          "change": 0.5,
+          "value": 0.2,
+          "residual": 0.5,
+          "history": 0.2
+        },
+        "ssim_weight": 0.2,
+        "loss_weights": {
+          "rec": 1.0,
+          "obs": 0.5,
+          "lat": 0.1,
+          "unc": 0.05,
+          "proj": 0.1
+        },
+        "learning_rate": 0.0001,
+        "clip_frames": 3,
+        "train_cases": 32,
+        "val_cases": 4,
+        "eval_cases": 4,
+        "eval_frames": 20,
+        "checkpoint_every": 50,
+        "validation_every": 50,
+        "steps": {
+          "codec": 1000,
+          "prior": 500,
+          "filter": 1000
+        },
+        "training_policy": "uniform",
+        "case_names": {
+          "train": [
+            "0X45980563E8E0859C.hdf5",
+            "0XB6D8F3BAB7D9415.hdf5",
+            "0X48C35748D6FE9BD.hdf5",
+            "0XFC6499D603B9E1E.hdf5",
+            "0X5AE30E7828920A82.hdf5",
+            "0X7CA15DC6A1C6DA13.hdf5",
+            "0X5ACD4D6566521DE1.hdf5",
+            "0X22F64BF092575F44.hdf5"
+          ],
+          "val": [
+            "0X115841DA5E9DC64D.hdf5",
+            "0X1225C19111629C6F.hdf5",
+            "0X108B4B26B48E417B.hdf5",
+            "0X13381981E598316E.hdf5"
+          ]
+        }
+      },
+      "stage": "filter",
+      "sources": {
+        "__init__.py": "474f15678e44fb2963aa5adeedf7f9172b0a464edce65f818c4e0872c36bee7f",
+        "__main__.py": "982976b5921afbc741885fea6bf3377366cd60bec745f35f456b973dc67f08cd",
+        "core.py": "db7a72af52b0118a3bece0c01455b9c9ddbe9be1df95053696a5d44c75fe35dc",
+        "kernels.py": "878461406ba1793462f6001e11ffabc1d10fcd2d8d890f843795e2d298244fd7",
+        "preflight.py": "256d7b45ce99ad71108e36cc860cafbeab428404dd884f1efbdde1d51f4a2187",
+        "runner.py": "99b987b2066a094fa74a781c9063f2bfe629d4ead994771acbefaae1a31c2fa5"
+      },
+      "checkpoint_sha256": "8a101909de855fa9d6b88e0ab661890b8f6e61b0d941d70983bc76b4bde5301c"
+    },
+    "fingerprint": "3d4accf8c613ef1523c9388e2853ebdf148e2db4a0b1e130fce2efb6d7b39655",
+    "chosen": {
+      "execution": "graph",
+      "threads": 1,
+      "projected_s": 77.86392989382148
+    },
+    "candidates": [
+      {
+        "threads": 1,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 5.566863413900137,
+            "median_s": 1.3251735679805279,
+            "samples_s": [
+              1.315782357007265,
+              1.3389252685010433,
+              1.3251735679805279,
+              1.3161221481859684,
+              1.3580078408122063
+            ],
+            "peak_allocator_bytes": 165714176,
+            "headroom_ok": true,
+            "free_mib": 23405.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 10.028854362666607,
+            "median_s": 0.06790297850966454,
+            "samples_s": [
+              0.08744249492883682,
+              0.07703899219632149,
+              0.06790297850966454,
+              0.06646979600191116,
+              0.06553937867283821
+            ],
+            "peak_allocator_bytes": 35004928,
+            "headroom_ok": true,
+            "free_mib": 23405.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.35353147983551025,
+            0.4351455271244049
+          ],
+          "graph": [
+            0.3535315692424774,
+            0.43514570593833923
+          ]
+        }
+      },
+      {
+        "threads": 4,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 5.444336626678705,
+            "median_s": 1.2784747071564198,
+            "samples_s": [
+              1.2970644906163216,
+              1.2760210260748863,
+              1.276153787970543,
+              1.2784747071564198,
+              1.2993593141436577
+            ],
+            "peak_allocator_bytes": 165714176,
+            "headroom_ok": true,
+            "free_mib": 23405.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 9.999384209513664,
+            "median_s": 0.07104184851050377,
+            "samples_s": [
+              0.07314329594373703,
+              0.07126883789896965,
+              0.06555190682411194,
+              0.07104184851050377,
+              0.0652976892888546
+            ],
+            "peak_allocator_bytes": 35008000,
+            "headroom_ok": true,
+            "free_mib": 23405.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.35353147983551025,
+            0.4351454973220825
+          ],
+          "graph": [
+            0.3535315692424774,
+            0.43514570593833923
+          ]
+        }
+      },
+      {
+        "threads": 8,
+        "tf32_enabled": false,
+        "tensorflow_build": {
+          "cpu_compiler": "clang 18",
+          "cuda_compute_capabilities": [
+            "sm_60",
+            "sm_70",
+            "sm_80",
+            "sm_89",
+            "compute_90"
+          ],
+          "cuda_version": "12.5.1",
+          "cudnn_version": "9",
+          "is_cuda_build": true,
+          "is_rocm_build": false,
+          "is_tensorrt_build": false
+        },
+        "modes": {
+          "eager": {
+            "passed": true,
+            "cold_s": 5.574277743697166,
+            "median_s": 1.3299335464835167,
+            "samples_s": [
+              1.3606279455125332,
+              1.3258676789700985,
+              1.318142343312502,
+              1.3299335464835167,
+              1.3435427322983742
+            ],
+            "peak_allocator_bytes": 163356928,
+            "headroom_ok": true,
+            "free_mib": 23405.0
+          },
+          "graph": {
+            "passed": true,
+            "cold_s": 10.148804381489754,
+            "median_s": 0.0699666403234005,
+            "samples_s": [
+              0.0741550363600254,
+              0.06687314808368683,
+              0.0699666403234005,
+              0.06678120046854019,
+              0.07244589552283287
+            ],
+            "peak_allocator_bytes": 33956352,
+            "headroom_ok": true,
+            "free_mib": 23405.0
+          }
+        },
+        "graph_parity_passed": true,
+        "graph_parity_error": null,
+        "loss_pairs": {
+          "eager": [
+            0.35353147983551025,
+            0.43514546751976013
+          ],
+          "graph": [
+            0.3535315692424774,
+            0.43514570593833923
+          ]
+        }
+      }
+    ],
+    "remaining_steps": 1000,
+    "calibration_wall_s": 96.91924201324582,
+    "scope": "Fastest passing tested candidate, not a global optimum; FP32 and objective unchanged",
+    "limits": "Two parity updates and five timed clips; not proof of full-training equivalence"
+  }
+}

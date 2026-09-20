@@ -460,13 +460,17 @@ def diagnostic_artifacts(root):
         if not files:
             continue
         with np.load(files[0], allow_pickle=False) as data:
-            labels = ["target", "model"] + [
-                k for k in data.files if k not in ("target", "mask", "model")
-            ]
+            # Qualification stores "model"; frozen-state diagnostics store "online".
+            # Plot actual outputs without fabricating/renaming a model prediction.
+            preferred = [k for k in ("target", "model", "online") if k in data.files]
+            labels = preferred + [k for k in data.files if k not in (*preferred, "mask")]
             fig, axes = plt.subplots(1, len(labels), figsize=(3 * len(labels), 3), squeeze=False)
             for ax, label in zip(axes[0], labels):
                 ax.imshow(data[label].squeeze(), vmin=-1, vmax=1, cmap="gray")
-                ax.set_title(label.replace("_", " "), fontsize=9)
+                title = label.replace("_", " ")
+                if label in ("privileged_previous_truth", "full_input_codec"):
+                    title = "PRIVILEGED (offline)\n" + title
+                ax.set_title(title, fontsize=9)
                 ax.axis("off")
             fig.tight_layout()
             fig.savefig(folder / "examples.png", dpi=140)

@@ -60,3 +60,33 @@ def test_preparation_three_stages_and_qualification(tmp_path, monkeypatch):
         from cognitive_ultrasound.preparation.common import read_frames
 
         monkeypatch.setattr(belief, "read_frames", read_frames)
+
+    # New closure path: same real TF checkpoint -> two short arms -> shared qualification.
+    from cognitive_ultrasound.preparation import closure_belief
+    from cognitive_ultrasound.preparation.closure import render_report
+    from cognitive_ultrasound.preparation.common import atomic_json
+
+    monkeypatch.setattr(closure_belief, "configuration", small)
+    cfg["closure"] = dict(
+        bf_source=str(tmp_path), bf_steps=2, bf_clip_frames=3, bf_eval_frames=3, cpu_only=True
+    )
+    cfg["frames"]["confirmation"] = 3
+    manifest["cohorts"].update(debug=["val.hdf5"], confirmation=["val.hdf5"])
+    for name, interval in (("reset3", 1), ("continuous12", 3)):
+        output = tmp_path / "jobs" / ("bf_history_" + name)
+        closure_belief.train(dict(reset_interval=interval), cfg, manifest, output, tmp_path)
+        assert read_json(output / "result.json")["frozen_arrays_checked"] > 0
+    output = tmp_path / "jobs/bf_history_eval_confirmation"
+    closure_belief.qualify(dict(cohort="confirmation"), cfg, manifest, output, tmp_path)
+    result = read_json(output / "result.json")
+    assert set(result["means"]) == {"frozen", "reset3", "continuous12"}
+    assert np.isfinite(list(result["means"].values())).all()
+    atomic_json(
+        tmp_path / "status.json",
+        dict(
+            status="completed",
+            jobs={"bf_history_eval_confirmation": dict(status="completed", elapsed_s=1)},
+        ),
+    )
+    render_report(tmp_path)
+    assert (tmp_path / "bf_history_confirmation.png").exists()

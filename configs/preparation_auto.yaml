@@ -1,0 +1,4 @@
+# Hardware-specific measured acceleration, with scientific/quality gates retained.
+extends: preparation.yaml
+bf:
+  execution: auto

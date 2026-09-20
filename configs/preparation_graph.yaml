@@ -1,0 +1,4 @@
+# Opt-in new run. Never mix execution modes into an existing experiment identity.
+extends: preparation.yaml
+bf:
+  execution: graph

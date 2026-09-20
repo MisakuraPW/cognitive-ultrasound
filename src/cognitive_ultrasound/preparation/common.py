@@ -76,6 +76,9 @@ def make_manifest(cfg):
     counts = cfg["cohorts"]
     for split, groups in [("val", ["debug", "development", "confirmation"]), ("train", ["train"])]:
         order = rng.permutation(splits[split]).tolist()
+        if split == "val":
+            excluded = set(cfg.get("excluded_validation_cases", []))
+            order = [name for name in order if name not in excluded]
         offset = 0
         for group in groups:
             n = counts[group]

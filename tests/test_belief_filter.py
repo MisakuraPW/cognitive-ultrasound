@@ -26,6 +26,7 @@ from cognitive_ultrasound.belief_filter.runner import (  # noqa: E402
     evaluate,
     load_checkpoint,
     loss_for_clip,
+    save_checkpoint,
     train,
     validate,
 )
@@ -101,7 +102,10 @@ def test_filter_gradients_and_frozen_components(models, cfg):
     )
 
 
-def test_three_stage_resume_and_evaluation(tmp_path, cfg):
+@pytest.mark.parametrize("execution", ["eager", "graph"])
+def test_three_stage_resume_and_evaluation(tmp_path, cfg, execution):
+    if execution == "graph":
+        cfg.update(execution="graph", training_policy="uniform")
     split = {}
     for index, name in enumerate(("train", "val", "test")):
         directory = tmp_path / "data" / name
@@ -153,3 +157,55 @@ def test_three_stage_resume_and_evaluation(tmp_path, cfg):
     other = copy.deepcopy(cfg)
     other["groups"] = [6, 4]
     load_checkpoint(filtered / "checkpoint.npz", Models(other))
+
+
+def test_explicit_filter_finetune_resets_optimizer_and_resumes(tmp_path, cfg):
+    """Both history arms start at the same model, not at the parent's Adam clock."""
+    cfg.update(
+        execution="eager",
+        training_policy="uniform",
+        filter_finetune=True,
+        training_reset_interval=1,
+    )
+    splits = {"test": []}
+    for group in ("train", "val"):
+        folder = tmp_path / "data" / group
+        folder.mkdir(parents=True)
+        splits[group] = [group + ".hdf5"]
+        with h5py.File(folder / splits[group][0], "w") as h:
+            h.create_dataset("data/image", data=np.full((3, 112, 112), -20, np.float32))
+    split = tmp_path / "split.yaml"
+    split.write_text(yaml.safe_dump(splits), encoding="utf-8")
+    cfg.update(data_root=str(tmp_path / "data"), split_manifest=str(split))
+    from cognitive_ultrasound.provenance import sha256
+
+    model = Models(cfg)
+    variables = model.configure_stage("filter")
+    opt = tf.keras.optimizers.Adam(1e-4)
+    opt.build(variables)
+    opt.iterations.assign(99)
+    parent = tmp_path / "parent.npz"
+    save_checkpoint(
+        parent,
+        model,
+        opt,
+        dict(
+            architecture=cfg,
+            stage="filter",
+            status="completed",
+            step=99,
+            identity=dict(split_sha256=sha256(split)),
+        ),
+    )
+    original = sha256(parent)
+    out = tmp_path / "continued"
+    train(cfg, out, "filter", parent, cpu=True, stop_after=1)
+    with np.load(out / "checkpoint.npz") as a:
+        assert int(a["optimizer_0"]) == 1
+    train(cfg, out, "filter", parent, cpu=True, resume=True)
+    with np.load(out / "checkpoint.npz") as a, np.load(parent) as b:
+        assert int(a["optimizer_0"]) == 2
+        for k in a.files:
+            if k.startswith(("encoder_", "decoder_", "prior_")):
+                np.testing.assert_array_equal(a[k], b[k])
+    assert sha256(parent) == original
