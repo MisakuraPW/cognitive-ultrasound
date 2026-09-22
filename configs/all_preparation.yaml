@@ -6,5 +6,5 @@ stages:
     output: /root/autodl-tmp/outputs_casl/preparation_closure_v4
   - name: torch
     module: cognitive_ultrasound.torch_casl
-    config: configs/torch_casl.yaml
-    output: /root/autodl-tmp/outputs_casl/torch_casl_v1
+    config: configs/torch_casl_repair_v2.yaml
+    output: /root/autodl-tmp/outputs_casl/torch_casl_v2

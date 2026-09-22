@@ -1,0 +1,5 @@
+# v1 spent 52.09 seconds before the JAX progress-recorder failure.
+# Keep its evidence intact; cap the repaired run so combined worker time
+# stays below the original 90-minute allocation.
+extends: torch_casl.yaml
+max_minutes: 89

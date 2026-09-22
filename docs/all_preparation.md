@@ -7,6 +7,12 @@
 
 不重跑已完成的 preparation_v1 / preparation_followup_v3，不重新转换数据，不启动完整 CASL 训练或 paper 全测试集评估。总入口没有增加实验或改变两个子协议。每批自己的硬件与数值预检保留。
 
+## 本次故障修复与续跑
+
+旧 Torch v1 在 JAX 编译阶段触发上游默认的 NumPy 中间图像记录，实际消耗 52.09 秒。现已显式关闭该调用的进度记录，并新增跨过记录间隔的回归验证。v1 失败记录保留；修复批次写入 torch_casl_v2，总入口写入 all_preparation_v2，避免混用源码身份。closure-v4 的已完成结果继续跳过。修复配置最多运行 89 分钟，与旧批次合计仍低于原 90 分钟额度。
+
+本实例基础 PyTorch 环境原缺 h5py，已补充；GPU 前向及输入梯度计算通过。首次使用其他镜像时，可在已有 Torch 环境安装 requirements/torch_benchmark_tools.txt 中的辅助依赖，不需要重装 Torch/CUDA。
+
 ## 一次粘贴启动
 
 已有实例应保留 casl 环境、官方 vendor/checkpoints、转换数据、v1/v3 的原始输出目录。确认旧实验进程已经结束；**运行期间不更新源码**。若旧版本尚有未完成的任务，先按原版本续跑；代码/硬件变化会被子流水线的身份检查拒绝，不能强行混写旧输出。
@@ -34,14 +40,14 @@ bash scripts/run_all_preparation.sh start
 统一日志包含两个子协调器的 STAGE 输出：
 
 ```bash
-tail -n 60 -F /root/autodl-tmp/outputs_casl/all_preparation_v1.console.log
+tail -n 60 -F /root/autodl-tmp/outputs_casl/all_preparation_v2.console.log
 ```
 
 具体任务的逐帧/训练输出仍在原目录：
 
 ```text
 /root/autodl-tmp/outputs_casl/preparation_closure_v4/jobs/<任务名>/console.log
-/root/autodl-tmp/outputs_casl/torch_casl_v1/{reference,eager,compile,graph}.log
+/root/autodl-tmp/outputs_casl/torch_casl_v2/{reference,eager,compile,graph}.log
 ```
 
 ```bash
@@ -61,7 +67,7 @@ resume 在确认没有旧协调器或 worker 存活后，清除总入口及这�
 总索引：
 
 ```bash
-cat /root/autodl-tmp/outputs_casl/all_preparation_v1/REPORT.md
+cat /root/autodl-tmp/outputs_casl/all_preparation_v2/REPORT.md
 ```
 
 下载两个新结果包及校验文件：
@@ -69,8 +75,8 @@ cat /root/autodl-tmp/outputs_casl/all_preparation_v1/REPORT.md
 ```text
 /root/autodl-tmp/outputs_casl/preparation_closure_v4.results.tar.gz
 /root/autodl-tmp/outputs_casl/preparation_closure_v4.results.tar.gz.sha256
-/root/autodl-tmp/outputs_casl/torch_casl_v1.results.tar.gz
-/root/autodl-tmp/outputs_casl/torch_casl_v1.results.tar.gz.sha256
+/root/autodl-tmp/outputs_casl/torch_casl_v2.results.tar.gz
+/root/autodl-tmp/outputs_casl/torch_casl_v2.results.tar.gz.sha256
 ```
 
 合计 **4.5 小时是计算子任务上限，不是完成时间保证**。初始化、报告、校验打包另计；失败/超限会留档，实例不会自动关机。两批都生成终态和结果包后可手动关机，再下载/分析。

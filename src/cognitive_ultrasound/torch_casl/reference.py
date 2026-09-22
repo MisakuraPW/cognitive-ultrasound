@@ -252,6 +252,10 @@ def matched_frame(model, budget):
                 p[None],
                 500 - steps,
                 seed=jax.random.PRNGKey(0),
+                # Upstream defaults to NumPy progress snapshots, which cannot run
+                # inside this jitted/vmapped numerical comparison.
+                track_progress_type=None,
+                verbose=False,
                 mask=mask,
                 omega=10.0,
             )[0]

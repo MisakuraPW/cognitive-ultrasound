@@ -39,7 +39,7 @@ def test_official_ema_dps_entropy_and_actions(exported, native):
     assert not any(p.requires_grad for p in native.parameters())
 
 
-def test_complete_three_step_solver_and_projection(exported, native):
+def test_complete_solver_crosses_progress_interval_without_host_conversion(exported, native):
     import jax
     import jax.numpy as jnp
 
@@ -55,9 +55,11 @@ def test_complete_three_step_solver_and_projection(exported, native):
     noise = rng.normal(size=previous.shape).astype("float32")
     args = (measurement, mask, previous, noise)
     expected = jax.jit(matched_frame(exported[1], 14), static_argnames=("steps",))(
-        *map(jnp.asarray, args), steps=3
+        # Eleven steps include step 490, where upstream's default progress
+        # recorder attempts NumPy conversion of a JAX tracer. Three missed it.
+        *map(jnp.asarray, args), steps=11
     )
-    actual = native.frame(*(nchw(a) for a in args), steps=3)
+    actual = native.frame(*(nchw(a) for a in args), steps=11)
     np.testing.assert_allclose(
         actual[0].permute(0, 2, 3, 1), np.asarray(expected[0]), rtol=2e-4, atol=2e-4
     )
