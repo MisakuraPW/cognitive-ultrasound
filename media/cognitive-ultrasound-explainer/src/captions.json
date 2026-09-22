@@ -1,0 +1,135 @@
+[
+  {
+    "startMs": 0,
+    "endMs": 5000,
+    "text": "心脏在不停跳动。超声怎样看见它？",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 5000,
+    "endMs": 10500,
+    "text": "探头发出短促的声波，再接收组织返回的回声。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 10500,
+    "endMs": 16000,
+    "text": "不同深度都有回声。回来得越晚，对应的位置越深。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 16000,
+    "endMs": 22000,
+    "text": "经过信号处理，回声的强弱变成这一方向上的亮暗。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 22000,
+    "endMs": 30000,
+    "text": "探头依次改变扫描方向，一条条扫描线组成一帧图像。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 30000,
+    "endMs": 38000,
+    "text": "连续更新的图像，让我们看见心脏运动。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 38000,
+    "endMs": 44500,
+    "text": "同样的深度、同样的范围，每条线都需要发射和等待回波。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 44500,
+    "endMs": 50500,
+    "text": "采得密，空间采样更充分，但完成一帧通常需要更久。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 50500,
+    "endMs": 57000,
+    "text": "采得疏，可以更早更新，但直接测到的信息也更少。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 57000,
+    "endMs": 62000,
+    "text": "缩小扫描范围也能加快更新，但看见的范围会变小。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 62000,
+    "endMs": 68000,
+    "text": "来不及每个方向都仔细看，能不能先看更有价值的位置？",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 68000,
+    "endMs": 73000,
+    "text": "先采分散的少量扫描线。实线标出的，是实际测到的信息。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 73000,
+    "endMs": 80000,
+    "text": "结合已测信息与模型学到的图像规律，估计完整图像。估计可能有误。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 80000,
+    "endMs": 86000,
+    "text": "几种可能的重建，在局部意见不一致。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 86000,
+    "endMs": 92000,
+    "text": "橙色表示模型更拿不准，不是病灶，也不是诊断概率。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 92000,
+    "endMs": 98000,
+    "text": "这一帧重建之后，把下一帧的扫描方向安排到更值得观察的位置。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 98000,
+    "endMs": 105000,
+    "text": "每帧还是同样多的线，改变的是位置。不确定性仍可能存在。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 105000,
+    "endMs": 110000,
+    "text": "有限的采集时间，优先观察更值得看的位置。",
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "startMs": 110000,
+    "endMs": 115000,
+    "text": "认知超声：让采集与重建相互配合。",
+    "timestampMs": null,
+    "confidence": null
+  }
+]
