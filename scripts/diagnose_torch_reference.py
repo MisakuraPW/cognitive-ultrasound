@@ -1,4 +1,5 @@
 """Bounded, read-only two-frame diagnosis of official versus explicit-noise replay."""
+# ruff: noqa: E402
 
 import inspect
 import json
@@ -76,6 +77,52 @@ posterior = jax.jit(posterior_fn)(
     jnp.asarray(history), state.mask, state.posterior_samples, split_seed(state.seed, 3)[0]
 )
 compare("official_posterior_vs_recover", posterior, expected)
+
+
+def inside_rng(y, m, p, seed):
+    keys = split_seed(split_seed(seed, 3)[0], 2)
+
+    def one(a, b, k):
+        return model.posterior_sample(
+            a[None],
+            mask=m,
+            n_steps=500,
+            initial_step=450,
+            initial_samples=b[None, None],
+            seed=k,
+            track_progress_type=None,
+            omega=10.0,
+        )[0, 0]
+
+    return jax.vmap(one)(y, p, keys)
+
+
+inside = jax.jit(inside_rng)(
+    jnp.asarray(measurement), jnp.asarray(mask), jnp.asarray(previous), state.seed
+)
+compare("rng_inside_graph_vs_recover", inside, expected)
+outside = posterior_fn(
+    jnp.asarray(history), state.mask, state.posterior_samples, split_seed(state.seed, 3)[0]
+)
+compare("no_outer_jit_vs_recover", outside, expected)
+
+# A barrier isolates the rounding boundary without changing noise values or
+# any diffusion/DPS settings. This is a diagnosis, never a timed baseline.
+original_reverse = model.reverse_conditional_diffusion
+
+
+def barrier_reverse(*args, **kwargs):
+    kwargs["initial_noise"] = jax.lax.optimization_barrier(kwargs["initial_noise"])
+    return original_reverse(*args, **kwargs)
+
+
+model.reverse_conditional_diffusion = barrier_reverse
+barrier = jax.jit(lambda *a: inside_rng(*a))(
+    jnp.asarray(measurement), jnp.asarray(mask), jnp.asarray(previous), state.seed
+)
+model.reverse_conditional_diffusion = original_reverse
+compare("rng_barrier_vs_recover", barrier, expected)
+compare("rng_barrier_vs_inside", barrier, inside)
 for label, selected_model, z in (
     ("loaded_eager", model, eager_noise),
     ("loaded_jit", model, jit_noise),
@@ -85,6 +132,7 @@ for label, selected_model, z in (
         jnp.asarray(measurement), jnp.asarray(mask), jnp.asarray(previous), jnp.asarray(z), steps=50
     )
     compare(label, result[0], expected)
+    compare(label + "_vs_rng_barrier", result[0], barrier)
     results[label]["selected_equal"] = bool(np.array_equal(result[2], arrays["next_action"]))
 atomic_npz(
     output / "warm.npz",
