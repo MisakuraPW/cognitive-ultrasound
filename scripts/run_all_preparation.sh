@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-OUTPUT="${ALL_PREPARATION_OUTPUT:-/root/autodl-tmp/outputs_casl/all_preparation_v2}"
+OUTPUT="${ALL_PREPARATION_OUTPUT:-/root/autodl-tmp/outputs_casl/all_preparation_v3}"
 CONFIG="${ALL_PREPARATION_CONFIG:-$PWD/configs/all_preparation.yaml}"
 MODE="${1:-start}"
 mkdir -p "$OUTPUT"

@@ -1,0 +1,5 @@
+# Preserve v1/v2 failed batches and both bounded GPU diagnoses.
+# 81 minutes + previous 112.19 seconds + diagnostic caps (240 + 180)
+# stays below the original 90-minute worker allowance.
+extends: torch_casl.yaml
+max_minutes: 81

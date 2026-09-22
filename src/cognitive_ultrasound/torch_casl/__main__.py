@@ -77,6 +77,11 @@ def report(output):
         "|---|---|---:|---:|---|",
     ]
     comparisons = []
+
+    def replay_passed(rows):
+        warm = [r for r in rows if not r["cold"]]
+        return bool(warm) and all((r.get("replay_check") or {}).get("passed", False) for r in warm)
+
     for steps in (50, 25):
         rr = [r for r in ref.get("rows", []) if r["steps"] == steps and not r["cold"]]
         seconds = [t for r in rr for t in r["matched_seconds"]]
@@ -84,7 +89,7 @@ def report(output):
         lines.append(
             f"| {steps} | JAX 原算法整段 JIT | "
             + (f"{1 / baseline:.3f}" if baseline else "未完成")
-            + " | 1 | 原版 |"
+            + f" | 1 | {'重放核对通过' if replay_passed(rr) else '重放核对未通过或缺失'} |"
         )
         for mode in ("eager", "compile", "graph"):
             file = output / f"{mode}.json"
@@ -97,7 +102,11 @@ def report(output):
             complete = bool(
                 data["completed"] and len(rows) == len(rr) and rows and ref.get("completed")
             )
-            parity = complete and all(r["parity"]["passed"] and r["selected_equal"] for r in rows)
+            parity = (
+                complete
+                and replay_passed(rr)
+                and all(r["parity"]["passed"] and r["selected_equal"] for r in rows)
+            )
             seconds_t = float(np.mean(ts)) if ts else None
             fps = 1 / seconds_t if seconds_t else None
             speedup = baseline / seconds_t if baseline and seconds_t else None
@@ -107,6 +116,7 @@ def report(output):
                     mode=mode,
                     complete=complete,
                     parity=parity,
+                    jax_replay_passed=replay_passed(rr),
                     p50_s=float(np.median(ts)) if ts else None,
                     p95_s=float(np.quantile(ts, 0.95)) if ts else None,
                     kernel_fps=fps,
@@ -121,6 +131,11 @@ def report(output):
                 + f" | {'通过' if parity else '未通过或不完整'} |"
             )
     lines += [
+        "",
+        "JAX 随机数在图内生成与图外传入会改变 GPU 浮点融合边界；",
+        "重放差异单独保存在 reference.json 的 replay_check，容差不放宽。",
+        "任何该项未通过的速度只作诊断，不能认定等价加速或 32 FPS 成功。",
+        "Torch parity 对照官方原轨迹；matched_parity 另对照相同外部噪声的 JAX 核心。",
         "",
         "## 原仓库适配器的实际速度",
         "",
@@ -167,6 +182,7 @@ def report(output):
                 fixed["completed"]
                 and data["completed"]
                 and ref.get("completed")
+                and replay_passed([r for r in ref.get("rows", []) if r["steps"] == steps])
                 and all(
                     r["parity"]["passed"]
                     and r["selected_equal"]

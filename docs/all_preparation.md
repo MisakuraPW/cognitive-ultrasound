@@ -9,7 +9,9 @@
 
 ## 本次故障修复与续跑
 
-旧 Torch v1 在 JAX 编译阶段触发上游默认的 NumPy 中间图像记录，实际消耗 52.09 秒。现已显式关闭该调用的进度记录，并新增跨过记录间隔的回归验证。v1 失败记录保留；修复批次写入 torch_casl_v2，总入口写入 all_preparation_v2，避免混用源码身份。closure-v4 的已完成结果继续跳过。修复配置最多运行 89 分钟，与旧批次合计仍低于原 90 分钟额度。
+v1 的 JAX 中间图像记录错误已修复。v2 进一步揭示：即使权重与随机噪声逐元素完全一致，把 RNG 从编译图内移到图外也会改变 GPU 浮点融合边界。两帧诊断用 optimization_barrier 完全重现该路径，排除了抽样和权重不同的解释。现在将有限的数值偏离记录为实验负结果，非有限值仍然拒绝；不再由数值断言中止整个比较。原轨迹和同输入核心的结果分开保存，任何重放核对未通过都禁止认定等价加速或 32 FPS 成功，容差不变。
+
+v1/v2 失败证据与诊断保留；新 Torch 和总入口使用 v3 目录，closure-v4 继续跳过。新批次最多运行 81 分钟，连同旧批次 112.19 秒和两次诊断的上限 240+180 秒，仍低于最初 90 分钟的子任务额度。
 
 本实例基础 PyTorch 环境原缺 h5py，已补充；GPU 前向及输入梯度计算通过。首次使用其他镜像时，可在已有 Torch 环境安装 requirements/torch_benchmark_tools.txt 中的辅助依赖，不需要重装 Torch/CUDA。
 
@@ -40,14 +42,14 @@ bash scripts/run_all_preparation.sh start
 统一日志包含两个子协调器的 STAGE 输出：
 
 ```bash
-tail -n 60 -F /root/autodl-tmp/outputs_casl/all_preparation_v2.console.log
+tail -n 60 -F /root/autodl-tmp/outputs_casl/all_preparation_v3.console.log
 ```
 
 具体任务的逐帧/训练输出仍在原目录：
 
 ```text
 /root/autodl-tmp/outputs_casl/preparation_closure_v4/jobs/<任务名>/console.log
-/root/autodl-tmp/outputs_casl/torch_casl_v2/{reference,eager,compile,graph}.log
+/root/autodl-tmp/outputs_casl/torch_casl_v3/{reference,eager,compile,graph}.log
 ```
 
 ```bash
@@ -67,7 +69,7 @@ resume 在确认没有旧协调器或 worker 存活后，清除总入口及这�
 总索引：
 
 ```bash
-cat /root/autodl-tmp/outputs_casl/all_preparation_v2/REPORT.md
+cat /root/autodl-tmp/outputs_casl/all_preparation_v3/REPORT.md
 ```
 
 下载两个新结果包及校验文件：
@@ -75,8 +77,8 @@ cat /root/autodl-tmp/outputs_casl/all_preparation_v2/REPORT.md
 ```text
 /root/autodl-tmp/outputs_casl/preparation_closure_v4.results.tar.gz
 /root/autodl-tmp/outputs_casl/preparation_closure_v4.results.tar.gz.sha256
-/root/autodl-tmp/outputs_casl/torch_casl_v2.results.tar.gz
-/root/autodl-tmp/outputs_casl/torch_casl_v2.results.tar.gz.sha256
+/root/autodl-tmp/outputs_casl/torch_casl_v3.results.tar.gz
+/root/autodl-tmp/outputs_casl/torch_casl_v3.results.tar.gz.sha256
 ```
 
 合计 **4.5 小时是计算子任务上限，不是完成时间保证**。初始化、报告、校验打包另计；失败/超限会留档，实例不会自动关机。两批都生成终态和结果包后可手动关机，再下载/分析。

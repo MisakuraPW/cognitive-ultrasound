@@ -133,6 +133,22 @@ def probes(model, output):
     )
 
 
+def replay_check(samples, expected, selected, expected_selected):
+    """Numerical rejection is an experimental result, not a worker exception."""
+    samples, expected = np.asarray(samples), np.asarray(expected)
+    if not np.isfinite(samples).all() or not np.isfinite(expected).all():
+        raise FloatingPointError("Nonfinite JAX replay; no valid speed comparison")
+    numerical = bool(np.allclose(samples, expected, rtol=2e-4, atol=2e-4))
+    actions = bool(np.array_equal(selected, expected_selected))
+    return dict(
+        passed=numerical and actions,
+        numerical=numerical,
+        selected_equal=actions,
+        max_abs=float(np.max(np.abs(samples - expected))),
+        mean_abs=float(np.mean(np.abs(samples - expected))),
+    )
+
+
 def run_reference(cfg, output):
     activate("jax")
     import jax
@@ -188,16 +204,16 @@ def run_reference(cfg, output):
                 expected = np.asarray(adapter.state.posterior_samples)
                 inputs = tuple(map(jnp.asarray, (measurement, mask, previous, z)))
                 matched_times, setup_s = [], None
+                check = None
+                matched_samples, matched_selected = expected, arrays["next_action"]
                 if index:
                     tick = time.perf_counter()
                     result = kernel(*inputs, steps=steps)
                     jax.block_until_ready(result)
                     setup_s = time.perf_counter() - tick
-                    np.testing.assert_allclose(
-                        np.asarray(result[0]), expected, rtol=2e-4, atol=2e-4
-                    )
-                    np.testing.assert_array_equal(
-                        np.asarray(result[2]), arrays["next_action"].astype(bool)
+                    matched_samples, matched_selected = map(np.asarray, (result[0], result[2]))
+                    check = replay_check(
+                        matched_samples, expected, matched_selected, arrays["next_action"]
                     )
                     for _ in range(cfg["repeats"]):
                         tick = time.perf_counter()
@@ -213,6 +229,8 @@ def run_reference(cfg, output):
                     initial_noise=z,
                     target=target[..., 0],
                     samples=expected,
+                    matched_samples=matched_samples,
+                    matched_selected=matched_selected,
                     prediction=arrays["prediction"][..., 0],
                     selected=arrays["next_action"],
                     entropy=arrays["uncertainty"],
@@ -226,10 +244,14 @@ def run_reference(cfg, output):
                     original=original_row,
                     matched_seconds=matched_times,
                     compile_or_first_s=setup_s,
+                    replay_check=check,
                 )
                 rows.append(row)
                 atomic_json(output / "reference.json", dict(rows=rows, completed=False))
-                print(f"JAX {name_out}: adapter={original_row['algorithm_s']:.3f}s", flush=True)
+                print(
+                    f"JAX {name_out}: adapter={original_row['algorithm_s']:.3f}s replay={check}",
+                    flush=True,
+                )
     atomic_json(
         output / "reference.json",
         dict(rows=rows, completed=True, jax=jax.__version__, device=str(jax.devices()[0])),

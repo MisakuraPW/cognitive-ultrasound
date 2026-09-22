@@ -34,6 +34,12 @@ JAX 基线已有整段 recover JIT，不拿未编译 Python 循环作低效参�
 
 FPS=帧数/同步总秒数，不能平均各帧的倒数。冷帧 500 步和编译/图捕获单独保存。首个 compiled 冷帧耗时包含单步编译，不能把它当成纯冷帧计算耗时。达到核心 32 FPS 而含传输未达到，不判作本批完整帧通过。
 
+## 修复后的数值诊断与额度
+
+当前默认使用 repair-v3：先前失败和两次限时诊断保留，剩余子任务上限为 81 分钟。GPU 诊断确认，图内 RNG 和外部噪声会因融合边界而产生不同的迭代结果；即使权重、噪声逐元素一致，也不能默认完整轨迹逐元素一致。reference.json 的 replay_check 单独记录此差异，Torch parity 对照官方原轨迹，matched_parity 对照外部噪声的 JAX 核心。未通过不终止有限的速度诊断，但禁止判为等价加速或 32 FPS 成功；不放宽原容差，不自动替换现有研究后端。
+
+完整故障证据和统一启动入口见 [所有准备实验](all_preparation.md)。
+
 ## 一次运行
 
 沿用服务器已工作的 `casl` 环境和转换数据/权重。旧 GPU 实验结束后，在已有仓库执行；更新前查看 `git status`，有修改先保留处理，不强制覆盖：
@@ -56,9 +62,9 @@ TORCH_PYTHON=/root/miniconda3/bin/python bash scripts/run_torch_casl.sh start
 Torch 解释器还需 numpy、h5py、PyYAML、psutil。缺这些轻量包时可用对应 Python 安装 `requirements/torch_benchmark_tools.txt`；这个文件没有 torch 或 NVIDIA 库。不自动替你装另一个 PyTorch，也不静默回退 CPU 测速。Linux 上 Inductor/Triton 的实际可用性在 compile 作业中检查，不支持时单独报错留档。
 
 ```bash
-tail -n 60 -F /root/autodl-tmp/outputs_casl/torch_casl_v1.console.log
+tail -n 60 -F /root/autodl-tmp/outputs_casl/torch_casl_v3.console.log
 # 各阶段详细输出：reference.log / eager.log / compile.log / graph.log
-tail -n 40 -F /root/autodl-tmp/outputs_casl/torch_casl_v1/graph.log
+tail -n 40 -F /root/autodl-tmp/outputs_casl/torch_casl_v3/graph.log
 ```
 
 固定四个阶段：原版参考 → eager → compile → CUDA Graph。累计子进程上限 90 分钟，每阶段最多 30 分钟；这是费用保护上限，不是预计时长，编译/预热计入上限。失败不追加更多候选或病例；原版失败则阻止后续比较。初始化、报告及打包另计，实例不自动关机。
@@ -67,7 +73,7 @@ tail -n 40 -F /root/autodl-tmp/outputs_casl/torch_casl_v1/graph.log
 bash scripts/run_torch_casl.sh status
 bash scripts/run_torch_casl.sh stop
 # 旧进程停止后，恢复原提交/配置/硬件；移除本批 STOP，再续跑：
-rm -f /root/autodl-tmp/outputs_casl/torch_casl_v1/STOP
+rm -f /root/autodl-tmp/outputs_casl/torch_casl_v3/STOP
 bash scripts/run_torch_casl.sh resume
 ```
 
@@ -78,14 +84,14 @@ bash scripts/run_torch_casl.sh resume
 `REPORT.md` 有配对速度、原版实际速度、连续质量与 32 FPS 判据；`comparison.json` 保留机器可读结果，逐帧原始时间和一致性误差在各模式 JSON。固定第 3 帧生成图像对照。`identity.json` 记录 Git、源码、输入数据、权重、环境与 GPU 身份；EMA 导出另有校验。
 
 ```bash
-cat /root/autodl-tmp/outputs_casl/torch_casl_v1/REPORT.md
+cat /root/autodl-tmp/outputs_casl/torch_casl_v3/REPORT.md
 ```
 
 结束时自动生成供下载的**结果包**（不是代码包）：
 
 ```text
-/root/autodl-tmp/outputs_casl/torch_casl_v1.results.tar.gz
-/root/autodl-tmp/outputs_casl/torch_casl_v1.results.tar.gz.sha256
+/root/autodl-tmp/outputs_casl/torch_casl_v3.results.tar.gz
+/root/autodl-tmp/outputs_casl/torch_casl_v3.results.tar.gz.sha256
 ```
 
 可用 `bash scripts/run_torch_casl.sh report` 单独重建报告。未通过一致性、后端失败或超时的阶段会明确显示；不把 `completed` 当作科学假设成立。

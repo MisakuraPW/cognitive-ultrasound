@@ -105,6 +105,7 @@ def run_torch(cfg, output, mode):
             if not all(np.isfinite(a).all() for a in arrays):
                 raise FloatingPointError("Nonfinite native frame; reject this execution mode")
             parity = comparison(arrays[0].transpose(0, 2, 3, 1), z["samples"])
+            matched_parity = comparison(arrays[0].transpose(0, 2, 3, 1), z["matched_samples"])
             selected = bool(np.array_equal(arrays[2], z["selected"]))
             target = z["target"]
             quality = dict(
@@ -119,6 +120,8 @@ def run_torch(cfg, output, mode):
                     seconds=samples,
                     first_call_s=first_s,
                     parity=parity,
+                    matched_parity=matched_parity,
+                    matched_selected_equal=bool(np.array_equal(arrays[2], z["matched_selected"])),
                     selected_equal=selected,
                     selected_count=int(arrays[2].sum()),
                     **quality,

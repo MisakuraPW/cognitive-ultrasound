@@ -57,7 +57,8 @@ def test_complete_solver_crosses_progress_interval_without_host_conversion(expor
     expected = jax.jit(matched_frame(exported[1], 14), static_argnames=("steps",))(
         # Eleven steps include step 490, where upstream's default progress
         # recorder attempts NumPy conversion of a JAX tracer. Three missed it.
-        *map(jnp.asarray, args), steps=11
+        *map(jnp.asarray, args),
+        steps=11,
     )
     actual = native.frame(*(nchw(a) for a in args), steps=11)
     np.testing.assert_allclose(
@@ -137,6 +138,39 @@ def test_bounded_config_and_plan():
 
     cfg = configuration(ROOT / "configs/torch_casl.yaml")
     assert cfg["max_minutes"] == 90 and cfg["steps"] == [50, 25]
+
+
+def test_finite_replay_mismatch_is_recorded_but_nonfinite_is_rejected():
+    from cognitive_ultrasound.torch_casl.reference import replay_check
+
+    check = replay_check(np.array([0.1]), np.array([0.0]), [True], [True])
+    assert not check["passed"] and check["selected_equal"] and check["max_abs"] == 0.1
+    with pytest.raises(FloatingPointError):
+        replay_check(np.array([np.nan]), np.array([0.0]), [True], [True])
+
+
+def test_failed_jax_replay_blocks_success_even_with_fast_passing_torch(tmp_path):
+    from cognitive_ultrasound.torch_casl.__main__ import report
+
+    atomic_json(tmp_path / "status.json", {"status": "completed"})
+    ref = dict(steps=50, cold=False, matched_seconds=[0.002], replay_check={"passed": False})
+    atomic_json(tmp_path / "reference.json", dict(completed=True, rows=[ref]))
+    fixed = dict(
+        steps=50,
+        cold=False,
+        seconds=[0.001],
+        parity={"passed": True},
+        selected_equal=True,
+        selected_count=14,
+    )
+    atomic_json(tmp_path / "graph.json", dict(completed=True, rows=[fixed]))
+    trajectory = dict(
+        steps=50, cold=False, host_wall_s=0.001, mae=0.1, reference_mae=0.1, selected_equal=True
+    )
+    atomic_json(tmp_path / "graph.trajectory.json", dict(completed=True, rows=[trajectory]))
+    report(tmp_path)
+    assert "达到（仅本批）" not in (tmp_path / "REPORT.md").read_text(encoding="utf-8")
+    assert read_json(tmp_path / "comparison.json")[0]["jax_replay_passed"] is False
 
 
 def test_explicit_noise_matches_official_posterior_rng(exported):
