@@ -1,0 +1,10 @@
+# Only the remaining fixed work; v1/v3 results are inputs, not rerun targets.
+stages:
+  - name: closure
+    module: cognitive_ultrasound.preparation.closure
+    config: configs/preparation_closure.yaml
+    output: /root/autodl-tmp/outputs_casl/preparation_closure_v4
+  - name: torch
+    module: cognitive_ultrasound.torch_casl
+    config: configs/torch_casl.yaml
+    output: /root/autodl-tmp/outputs_casl/torch_casl_v1
