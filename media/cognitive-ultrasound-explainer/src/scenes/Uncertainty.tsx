@@ -1,122 +1,103 @@
 import React from "react";
-import { C, smooth, LINE_SETS } from "../config";
-import { Fan, T, Label, Arrow, Line } from "../visuals";
+import { C, MAIN, LINE_SETS, smooth, clamp } from "../config";
+import { T, Arrow, Line, point } from "../visuals";
 export const Uncertainty: React.FC<{ t: number }> = ({ t }) => {
-  const stage = t < 97 ? 0 : t < 101 ? 1 : 2;
+  const second = t >= 45.6,
+    candidate = t >= 39.3 && t < 42 ? 1 : t >= 46.2 && t < 48.2 ? 2 : 0;
+  const cOpacity =
+    candidate === 1 ? smooth((t - 39.3) / 0.8) : smooth((t - 46.2) / 0.6);
+  const heatAlpha =
+    t < 42
+      ? smooth((t - 37.7) / 1)
+      : t < 45.6
+        ? 0
+        : t < 48.2
+          ? smooth((t - 45.6) / 0.6)
+          : t < 51.7
+            ? 0
+            : 0.65;
+  const hx = second && t < 48.2 ? -76 : 100,
+    hy = second && t < 48.2 ? 330 : 357;
+  const left = second && t < 48.2,
+    tx = left ? 210 : 1450,
+    ty = left ? 650 : 650;
+  const cursor =
+    t >= 41.5 && t < 43
+      ? clamp((t - 41.5) / 0.5)
+      : t >= 47.7 && t < 49.2
+        ? clamp((t - 47.7) / 0.5)
+        : 0;
   return (
-    <g opacity={smooth(t - 80)}>
-      {t < 92 ? (
-        <g>
-          <T x={1140} y={320} size={40} weight={600}>
-            几种可能的重建
+    <g>
+      <g opacity={heatAlpha}>
+        <T x={tx} y={ty} size={40} color={C.orange}>
+          重建不确定性
+        </T>
+        <path
+          d={`M${left ? tx + 235 : tx} ${ty + 12} L${MAIN.x + hx * MAIN.scale} ${MAIN.y + hy * MAIN.scale}`}
+          fill="none"
+          stroke={C.orange}
+          strokeWidth="2.5"
+        />
+      </g>
+      {candidate > 0 && (
+        <g opacity={cOpacity}>
+          <T x={1240} y={315} size={36} color={C.orange}>
+            候选方向
           </T>
-          {[0, 1, 2].map((i) => (
-            <g key={i}>
-              <Fan
-                id={`possible-${i}`}
-                x={1220 + i * 220}
-                y={378}
-                scale={0.26}
-                mode="possible"
-                variant={i}
-                probe={false}
+          <g transform={`translate(${MAIN.x} ${MAIN.y}) scale(${MAIN.scale})`}>
+            {LINE_SETS[candidate].map((a) => (
+              <Line
+                key={a}
+                angle={a}
+                color={C.orange}
+                dash
+                width={3.2}
+                opacity={
+                  (candidate === 1 ? a >= 8 && a <= 22 : a >= -23 && a <= -2)
+                    ? 1
+                    : 0.36
+                }
               />
-              <ellipse
-                cx={1246 + i * 220}
-                cy={471}
-                rx="23"
-                ry="26"
-                fill="none"
-                stroke={C.orange}
-                strokeWidth="2"
-              />
-              <T
-                x={1220 + i * 220}
-                y={577}
-                anchor="middle"
-                size={27}
-                color={C.purple}
-              >
-                可能 {i + 1}
-              </T>
-            </g>
-          ))}
-          <T x={1140} y={652} size={35} color={C.orange}>
-            局部意见不一致 → 更拿不准
-          </T>
-          <T x={1140} y={720} size={29} color={C.muted}>
-            橙色不是病灶，也不是诊断概率
-          </T>
-          <T x={1140} y={772} size={27} color={C.muted}>
-            不代表系统知道真实误差
-          </T>
-        </g>
-      ) : (
-        <g>
-          <T x={1140} y={335} size={42} weight={600}>
-            {stage === 0
-              ? "把方向安排给下一帧"
-              : stage === 1
-                ? "下一帧：新的观察位置"
-                : "再下一帧：继续更新"}
-          </T>
-          <Label x={1140} y={424}>
-            实线：本帧已测
-          </Label>
-          <Label x={1140} y={483} color={C.orange} dashed>
-            虚线：下一帧候选方向
-          </Label>
-          <T x={1140} y={580} size={42} color={C.cyan}>
-            每帧 6 条示意线
-          </T>
-          <T x={1140} y={640} size={32} color={C.muted}>
-            数量相同，位置改变
-          </T>
-          <T x={1140} y={727} size={29} color={C.muted}>
-            更新之后，仍可能有拿不准的地方
-          </T>
-          {t < 104 && (
-            <g
-              transform="translate(620 270)"
-              opacity={smooth(
-                (t - (stage === 0 ? 92 : stage === 1 ? 98 : 102)) / 1,
-              )}
-            >
-              {LINE_SETS[Math.min(stage + 1, 2)].map((a) => (
-                <Line
-                  key={a}
-                  angle={a}
-                  color={C.orange}
-                  dash
-                  opacity={0.55}
-                  width={2}
-                />
-              ))}
-            </g>
-          )}
+            ))}
+            {LINE_SETS[candidate]
+              .filter((a) =>
+                candidate === 1 ? a >= 8 && a <= 22 : a >= -23 && a <= -2,
+              )
+              .map((a) => {
+                const p = point(a, candidate === 1 ? 370 : 350);
+                return (
+                  <circle
+                    key={a}
+                    cx={p[0]}
+                    cy={p[1]}
+                    r="7"
+                    fill="#FFD18C"
+                    stroke={C.orange}
+                    strokeWidth="2"
+                  />
+                );
+              })}
+          </g>
         </g>
       )}
-      <g opacity={smooth((t - 90) / 1)}>
-        <rect x="235" y="830" width="1450" height="62" rx="12" fill="#102631" />
-        <T
-          x={505}
-          y={871}
-          anchor="middle"
-          size={30}
-          color={stage === 0 ? C.text : C.muted}
-        >
-          这一帧：测量与重建
+      <g opacity={smooth((t - 37) / 0.5)}>
+        <T x={765} y={1020} anchor="middle" size={44}>
+          当前帧
         </T>
-        <Arrow x={778} y={858} length={210} color={C.orange} />
+        <Arrow x={890} y={1003} length={145} color={C.cyan} />
         <T
-          x={1320}
-          y={871}
+          x={1155}
+          y={1020}
           anchor="middle"
-          size={30}
-          color={stage > 0 ? C.cyan : C.orange}
+          size={44}
+          color={cursor > 0.5 ? C.cyan : C.text}
         >
-          下一帧：调整观察位置
+          下一帧
         </T>
+        {cursor > 0 && (
+          <circle cx={890 + 145 * cursor} cy="1003" r="7" fill={C.cyan} />
+        )}
       </g>
     </g>
   );

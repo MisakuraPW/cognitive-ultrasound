@@ -1,55 +1,28 @@
 import React from "react";
-import { C, smooth } from "../config";
-import { Fan, T, Arrow } from "../visuals";
-export const Build: React.FC<{ t: number; frame: number }> = ({ t, frame }) => (
-  <g>
-    {t < 30 ? (
-      <g opacity={smooth(t - 22)}>
-        <T x={1170} y={380} size={52} weight={600}>
-          逐条采集
-        </T>
-        <T x={1170} y={462} size={52} weight={600}>
-          逐步成像
-        </T>
-        <path d="M1170 522 h510" stroke={C.line} />
-        <T x={1170} y={590} color={C.muted}>
-          扫描方向从探头向外发散
-        </T>
-        <T x={1170} y={648} color={C.cyan}>
-          每个方向，都经历发射与接收
-        </T>
-      </g>
-    ) : (
-      <g opacity={smooth(t - 30)}>
-        <T x={1190} y={310} size={48} weight={600}>
-          一帧接着一帧
-        </T>
-        {[0, 1, 2].map((i) => (
-          <g key={i}>
-            <Fan
-              id={`strip-${i}`}
-              x={1220 + i * 220}
-              y={425}
-              scale={0.23}
-              frame={frame - 18 * (2 - i)}
-              probe={false}
-            />
-            <T
-              x={1220 + i * 220}
-              y={615}
-              anchor="middle"
-              size={28}
-              color={C.muted}
-            >
-              {["刚才", "随后", "现在"][i]}
-            </T>
-          </g>
-        ))}
-        <Arrow x={1180} y={685} length={565} />
-        <T x={1465} y={760} size={34} anchor="middle" color={C.cyan}>
-          连续更新 → 看见运动
-        </T>
-      </g>
-    )}
-  </g>
-);
+import { C, MAIN, DENSE, smooth } from "../config";
+import { T, point } from "../visuals";
+export const Build: React.FC<{ t: number }> = ({ t }) => {
+  const p = ((t - 5) / 4.5) * 24,
+    i = Math.min(23, Math.floor(p)),
+    within = p - i,
+    a = DENSE[Math.max(0, i)],
+    r = within < 0.5 ? within * 2 * 540 : (1 - within) * 2 * 540,
+    pos = point(a, r);
+  return (
+    <g opacity={smooth((t - 5) / 0.3) * (1 - smooth((t - 11.5) / 0.5))}>
+      <T x={1080} y={180} size={43}>
+        逐线成像
+      </T>
+      {t < 9.5 && (
+        <g transform={`translate(${MAIN.x} ${MAIN.y}) scale(${MAIN.scale})`}>
+          <path
+            d={`M${pos[0] - 14} ${pos[1]} Q${pos[0]} ${pos[1] + 8} ${pos[0] + 14} ${pos[1]}`}
+            fill="none"
+            stroke={within < 0.5 ? C.cyanLight : "#FFFFFF"}
+            strokeWidth="4"
+          />
+        </g>
+      )}
+    </g>
+  );
+};

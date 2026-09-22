@@ -9,7 +9,10 @@ import {
 import path from "node:path";
 import fs from "node:fs";
 const root = process.cwd(),
-  out = path.resolve(root, "../../outputs/cognitive-ultrasound-explainer");
+  out = path.resolve(
+    root,
+    "../../outputs/cognitive-ultrasound-explainer/ppt-v2",
+  );
 fs.mkdirSync(path.join(out, "previews"), { recursive: true });
 const browserExecutable =
   process.env.REMOTION_BROWSER ||
@@ -22,11 +25,11 @@ const serveUrl = await bundle({
   rspack: true,
 });
 const browser = await openBrowser("chrome", { browserExecutable });
-const inputProps = { voiceover: process.env.VOICEOVER || "" };
+const inputProps = {};
 try {
   const composition = await selectComposition({
     serveUrl,
-    id: "CognitiveUltrasound",
+    id: "CognitiveUltrasoundPPT",
     inputProps,
     puppeteerInstance: browser,
   });
@@ -34,8 +37,8 @@ try {
     const times = process.env.QA_TIMES
       ? process.env.QA_TIMES.split(",").map(Number)
       : [
-          0, 7, 9, 12, 18, 24, 28, 33, 40, 44, 49, 54, 59, 65, 70, 76, 83, 88,
-          94, 98, 102, 108, 113,
+          0, 1.2, 2.4, 4.4, 7, 10.5, 12.5, 14, 18, 23, 24.5, 27, 31, 35, 38.5,
+          40.5, 42.7, 45.8, 47.3, 49, 52.5, 54,
         ];
     for (const t of times) {
       await renderStill({
@@ -43,7 +46,7 @@ try {
         composition,
         inputProps,
         puppeteerInstance: browser,
-        frame: Math.min(3449, Math.round(t * 30)),
+        frame: Math.min(1649, Math.round(t * 30)),
         output: path.join(
           out,
           "previews",
@@ -55,7 +58,7 @@ try {
     }
   } else {
     let last = -1;
-    const outputLocation = path.join(out, "cognitive-ultrasound-explainer.mp4");
+    const outputLocation = path.join(out, "cognitive-ultrasound-ppt-v2.mp4");
     await renderMedia({
       serveUrl,
       composition,
@@ -72,7 +75,7 @@ try {
         const pct = Math.floor(p.progress * 100);
         if (pct >= last + 5) {
           last = pct;
-          console.log(`Render ${pct}% (${p.renderedFrames}/3450)`);
+          console.log(`Render ${pct}% (${p.renderedFrames}/1650)`);
         }
       },
     });

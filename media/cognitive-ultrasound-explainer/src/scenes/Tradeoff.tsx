@@ -1,112 +1,112 @@
 import React from "react";
-import { C, clamp, smooth, SPARSE } from "../config";
-import { Fan, T } from "../visuals";
-const Slots: React.FC<{ x: number; y: number; n: number; elapsed: number }> = ({
-  x,
-  y,
-  n,
-  elapsed,
-}) => (
-  <g>
-    {Array.from({ length: 18 }, (_, i) => (
-      <g key={i} opacity={i < n ? 1 : 0.15}>
-        <rect
-          x={x + i * 31}
-          y={y}
-          width="27"
-          height="24"
-          rx="3"
-          fill={i < elapsed ? C.cyan : C.line}
+import { C, SPARSE, TRADE, smooth, clamp } from "../config";
+import { Fan, T, arc, point } from "../visuals";
+const Dimension: React.FC<{
+  x: number;
+  half: number;
+  radius: number;
+  right?: boolean;
+}> = ({ x, half, radius, right = false }) => {
+  const a = right ? half + 9 : -half - 9,
+    p = point(a, 40),
+    q = point(a, radius);
+  return (
+    <g transform={`translate(${x} 265) scale(1.02)`}>
+      <path
+        d={arc(-half, half, 135)}
+        fill="none"
+        stroke={C.cyanLight}
+        strokeWidth="3"
+      />
+      <path
+        d={`M${p[0]} ${p[1]} L${q[0]} ${q[1]}`}
+        stroke={C.muted}
+        strokeWidth="2.5"
+      />
+      {[p, q].map((v, i) => (
+        <path
+          key={i}
+          d={`M${v[0] - 8} ${v[1] - 5} l16 10`}
+          stroke={C.muted}
+          strokeWidth="3"
         />
-        <rect
-          x={x + i * 31}
-          y={y}
-          width="5"
-          height="24"
-          fill={i < elapsed ? "#dffaff" : "#4a6370"}
-        />
-      </g>
-    ))}
-    <T x={x} y={y + 65} size={27} color={C.muted}>
-      每格：发射 + 等待回波
-    </T>
-  </g>
-);
+      ))}
+    </g>
+  );
+};
 export const Tradeoff: React.FC<{ t: number; frame: number }> = ({
   t,
   frame,
 }) => {
-  const local = frame - 38 * 30,
-    motion = t >= 47,
-    progress = clamp((t - 39) / 7.2) * 18;
-  const rightFrame = motion ? Math.floor((local - 270) / 18) * 18 : 0;
+  const local = Math.max(0, frame - TRADE.start * 30),
+    p = smooth((t - 12.8) / 0.7) * (1 - smooth((t - 23.4) / 0.6));
   return (
-    <g>
-      {t < 57 ? (
-        <g opacity={smooth((t - 39.2) / 0.6)}>
-          <Fan
-            id="compare-right"
-            x={1405}
-            y={340}
-            scale={0.7}
-            frame={rightFrame}
-            lines={SPARSE.slice(0, motion ? 6 : Math.floor(progress))}
-            onlyLines
-            lineHalfWidth={2.4}
+    <g opacity={p}>
+      <Fan
+        id="trade-right"
+        x={1410}
+        y={265}
+        scale={1.02}
+        radius={TRADE.shallowRadius}
+        halfAngle={33}
+        frame={390 + Math.floor(local / TRADE.fastPeriod) * TRADE.fastPeriod}
+        lines={SPARSE}
+        onlyLines
+        lineHalfWidth={2.1}
+        lineOpacity={0.7}
+      />
+      <Dimension x={510} half={48} radius={555} />
+      <Dimension x={1410} half={33} radius={435} right />
+      <T x={960} y={78} anchor="middle" size={43}>
+        看多广、看多深、采多密，都要花时间
+      </T>
+      <T x={710} y={390} size={36}>
+        范围
+      </T>
+      <T x={1600} y={390} size={36}>
+        范围
+      </T>
+      <T x={120} y={550} size={36}>
+        深度
+      </T>
+      <T x={1735} y={550} size={36}>
+        深度
+      </T>
+      <T x={980} y={570} anchor="middle" size={37}>
+        采样密度
+      </T>
+      <path
+        d="M900 586 L812 624 M1060 586 L1185 624"
+        fill="none"
+        stroke={C.muted}
+        strokeWidth="2"
+      />
+      <T x={510} y={905} anchor="middle" size={35}>
+        一帧采集时间
+      </T>
+      <T x={1410} y={905} anchor="middle" size={35}>
+        一帧采集时间
+      </T>
+      {[
+        { x: 210, w: 600, period: TRADE.slowPeriod },
+        { x: 1240, w: 340, period: TRADE.fastPeriod },
+      ].map((b, i) => (
+        <g key={i}>
+          <path d={`M${b.x} 947 h${b.w}`} stroke="#DDE6E9" strokeWidth="16" />
+          <path
+            d={`M${b.x} 947 h${b.w * clamp((local % b.period) / b.period)}`}
+            stroke={C.cyan}
+            strokeWidth="16"
           />
-          <T x={505} y={236} size={43} anchor="middle" weight={600}>
-            采得密
-          </T>
-          <T x={1405} y={236} size={43} anchor="middle" weight={600}>
-            采得疏
-          </T>
-          <T x={960} y={185} anchor="middle" size={28} color={C.muted}>
-            相同深度 · 相同扇形范围{motion ? " · 同一运动时钟" : ""}
-          </T>
-          <Slots
-            x={228}
-            y={802}
-            n={18}
-            elapsed={motion ? ((local - 270) % 54) / 3 : progress}
+          <path d={`M${b.x + b.w} 930 v34`} stroke={C.muted} strokeWidth="3" />
+          <circle
+            cx={b.x + b.w}
+            cy="947"
+            r={5 + 5 * (1 - clamp((local % b.period) / 8))}
+            fill={C.cyan}
           />
-          <Slots
-            x={1128}
-            y={802}
-            n={6}
-            elapsed={motion ? ((local - 270) % 18) / 3 : progress}
-          />
-          <T x={505} y={765} size={30} anchor="middle" color={C.cyan}>
-            {motion
-              ? "保持上一帧，直到新一帧采完"
-              : "更多方向 → 更长的采集时间"}
-          </T>
-          <T x={1405} y={765} size={30} anchor="middle" color={C.cyan}>
-            {motion
-              ? "较早更新，测到的信息较少"
-              : progress >= 6
-                ? "这一帧先采完了"
-                : "较少方向 → 较早采完"}
-          </T>
         </g>
-      ) : (
-        <g opacity={smooth(t - 57)}>
-          <T x={1170} y={360} size={50} weight={600}>
-            范围也能换时间
-          </T>
-          <T x={1170} y={455} size={34}>
-            保持近似的角度采样间隔
-          </T>
-          <T x={1170} y={515} size={34} color={C.cyan}>
-            范围变窄 → 要采的线变少
-          </T>
-          <T x={1170} y={632} size={34} color={C.muted}>
-            代价：看见的区域变小
-          </T>
-          <T x={1170} y={755} size={27} color={C.muted}>
-            还受深度、聚焦和系统处理等因素影响
-          </T>
-        </g>
-      )}
+      ))}
     </g>
   );
 };

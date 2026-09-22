@@ -3,12 +3,11 @@ import { CognitiveUltrasound } from "./Composition";
 import "./index.css";
 export const RemotionRoot = () => (
   <Composition
-    id="CognitiveUltrasound"
+    id="CognitiveUltrasoundPPT"
     component={CognitiveUltrasound}
-    durationInFrames={3450}
+    durationInFrames={1650}
     fps={30}
     width={1920}
     height={1080}
-    defaultProps={{ voiceover: "" }}
   />
 );
