@@ -1,0 +1,5 @@
+# Optional small tools for an existing GPU PyTorch interpreter; never installs torch/CUDA.
+numpy>=1.26,<3
+h5py>=3.11
+PyYAML>=6
+psutil>=5.9

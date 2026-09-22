@@ -6,6 +6,8 @@
 
 ## 先读这些文件
 
+- [新增：CASL 原生 PyTorch 与计算图速度对照](docs/torch_casl_benchmark.md)：冻结官方 EMA，无需训练；同计算量比较 JAX、Torch、compile 与 CUDA Graph，核查 32 FPS。
+
 - **当前一次性准备收尾入口：[最后一批准备工作](docs/preparation_closure.md)**：固定 18 项任务，补多预算覆盖、公平闭环与 BF 历史对照；结束后统一交接，不自动追加实验。
 - [默认加速与运行前检查](docs/accelerated_experiments.md)：硬件预检与已有加速凭据。
 

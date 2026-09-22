@@ -1,0 +1,13 @@
+# Matched workload: all DPS steps retained; two particles, three-frame history, EMA frozen.
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+checkpoint: checkpoints/official
+split_manifest: configs/splits/split.yaml
+seed: 20260922
+budget: 14
+cases: 2
+frames: 6
+steps: [50, 25]
+repeats: 3
+modes: [eager, compile, graph]
+max_minutes: 90
+job_minutes: 30
