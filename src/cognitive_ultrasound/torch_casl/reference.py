@@ -90,7 +90,7 @@ def load_model(checkpoint, cpu=False):
     )
 
 
-def probes(model, output):
+def probes(model, output, storage_dtype=None):
     import jax
     import jax.numpy as jnp
     from zea.agent.selection import GreedyEntropy
@@ -125,11 +125,11 @@ def probes(model, output):
         mask=mask,
         noise=np.asarray(noise),
         signal=np.asarray(signal),
-        prediction=np.asarray(pred),
-        gradient=np.asarray(gradient),
+        prediction=np.asarray(pred, dtype=storage_dtype),
+        gradient=np.asarray(gradient, dtype=storage_dtype),
         particles=np.asarray(particles),
         selected=np.asarray(selected),
-        entropy=np.asarray(entropy),
+        entropy=np.asarray(entropy, dtype=storage_dtype),
     )
 
 

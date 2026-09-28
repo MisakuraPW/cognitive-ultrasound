@@ -1,0 +1,24 @@
+# Fixed 2026-09-28 protocol. New output is mandatory on code/config/hardware change.
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+split_manifest: configs/splits/split.yaml
+checkpoint: checkpoints/official
+pythons:
+  jax: /root/miniconda3/envs/casl/bin/python
+  tensorflow: /root/miniconda3/envs/casl/bin/python
+  torch: /root/miniconda3/bin/python
+threads: 4
+cohort_seed: 20260928
+history_roots:
+  - /root/autodl-tmp/outputs_casl/preparation_v1
+  - /root/autodl-tmp/outputs_casl/preparation_followup_v3
+  - /root/autodl-tmp/outputs_casl/preparation_closure_v4
+  - /root/autodl-tmp/outputs_casl/torch_casl_v3
+closure_root: /root/autodl-tmp/outputs_casl/preparation_closure_v4
+casl_training_config: configs/training.yaml
+bf_config: configs/belief_filter/pilot.yaml
+training_batch_size: 32
+bf_training_policy: uniform # same fixed-mask workload as the existing preparation pipeline
+bf_initial:
+  codec: null
+  prior: /root/autodl-tmp/outputs_casl/preparation_v1/jobs/bf_codec/training/checkpoint.npz
+  filter: /root/autodl-tmp/outputs_casl/preparation_v1/jobs/bf_prior/training/checkpoint.npz

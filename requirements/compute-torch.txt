@@ -1,0 +1,8 @@
+# CPU-side analysis/I/O dependencies for the EXISTING Torch environment.
+# Deliberately no torch, CUDA or NVIDIA runtime packages.
+h5py==3.16.0
+scipy==1.15.3
+scikit-image==0.25.2
+PyYAML>=6
+psutil>=5.9
+matplotlib>=3.8

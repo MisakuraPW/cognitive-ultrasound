@@ -6,6 +6,8 @@
 
 ## 先读这些文件
 
+**2026-09-28 追加：新批次使用 [加速审计与计算基座](docs/compute_lab.md)。** 下列“一键总入口/当前/默认加速”属于历史批次，原文留档。新入口拆分 A/B 修改和数值判定，默认保留官方 FP32，提供 probe → calibrate → run → report 及 stop/resume；不会自动采用近似版本。本地与 GPU 验证范围见 [验收记录](docs/compute_lab_validation.md)。
+
 - **全部剩余实验的一键总入口：[总运行说明](docs/all_preparation.md)**：准备收尾 → Torch 对照，统一日志、暂停与续跑；已完成批次跳过。
 
 - [新增：CASL 原生 PyTorch 与计算图速度对照](docs/torch_casl_benchmark.md)：冻结官方 EMA，无需训练；同计算量比较 JAX、Torch、compile 与 CUDA Graph，核查 32 FPS。

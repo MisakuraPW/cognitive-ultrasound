@@ -37,7 +37,9 @@ class Adapter:
             raise RuntimeError(
                 "CASL preparation requires a visible GPU; CPU fallback is not allowed"
             )
-        self.variant = VARIANTS[variant]
+        # New protocols supply an explicit, archived variant instead of mutating
+        # the historical registry shared by old experiments.
+        self.variant = dict(variant) if isinstance(variant, dict) else VARIANTS[variant]
         v = self.variant
         keras.mixed_precision.set_global_policy(v["precision"])
         ac = AgentConfig(
