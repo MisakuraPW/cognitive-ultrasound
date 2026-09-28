@@ -13,24 +13,57 @@ import h5py
 import numpy as np
 
 
+def bilinear_2x_separable(x):
+    """Diagnostic only: half-pixel 2x interpolation without indexed scatter VJP.
+
+    Same real-arithmetic operator; floating-point accumulation order may differ.
+    This must not silently replace the production interpolation implementation.
+    """
+    import torch
+
+    def width(a):
+        left = torch.cat((a[..., :1], a[..., :-1]), dim=-1)
+        right = torch.cat((a[..., 1:], a[..., -1:]), dim=-1)
+        even = left + (a - left) * 0.75
+        odd = a + (right - a) * 0.25
+        return torch.stack((even, odd), dim=-1).flatten(-2)
+
+    return width(width(x).transpose(-2, -1)).transpose(-2, -1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--deterministic", type=int, choices=[0, 1], required=True)
+    parser.add_argument("--bilinear", choices=["original", "separable"], default="original")
     args = parser.parse_args()
     root, output = Path(args.root), Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     os.environ["TORCHINDUCTOR_COMPILE_THREADS"] = "1"
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     import torch
-    from cognitive_ultrasound.torch_casl.native import FrozenGraph, NativeCASL, CapturedFrame, nchw
+
+    from cognitive_ultrasound.torch_casl.native import CapturedFrame, FrozenGraph, NativeCASL, nchw
 
     torch.set_num_threads(4)
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.set_float32_matmul_precision("highest")
     torch.use_deterministic_algorithms(bool(args.deterministic))
+    if args.bilinear == "separable":
+        original_interpolate = torch.nn.functional.interpolate
+
+        def diagnostic_interpolate(x, *a, **kw):
+            if kw.get("mode") == "bilinear":
+                if a or x.ndim != 4 or kw.get("scale_factor") != (2, 2) or kw.get("align_corners"):
+                    raise ValueError(
+                        "Diagnostic interpolation only supports the exported 2x layers"
+                    )
+                return bilinear_2x_separable(x)
+            return original_interpolate(x, *a, **kw)
+
+        torch.nn.functional.interpolate = diagnostic_interpolate
     manifest = json.loads((root / "manifest.json").read_text())
     name = manifest["cohorts"]["debug"][0]
     source = root / ".cache/debug/b14/42" / Path(name).with_suffix(".h5").name
@@ -90,6 +123,10 @@ def main():
         name: [float((a.float() - b.float()).abs().max()) for a, b in zip(values, reference)]
         for name, values in [("uncaptured_repeat", repeated), ("graph_vs_uncaptured", graph)]
     }
+    np.savez(
+        output / "frame_outputs.npz",
+        **{f"output_{i}": value.detach().cpu().numpy() for i, value in enumerate(graph)},
+    )
 
     def profile(label, fn):
         with torch.profiler.profile(
@@ -118,6 +155,7 @@ def main():
     profile("frame_graph", lambda: captured(*frame_args))
     result = dict(
         deterministic=bool(args.deterministic),
+        bilinear=args.bilinear,
         precision="fp32",
         steps=50,
         particles=2,
