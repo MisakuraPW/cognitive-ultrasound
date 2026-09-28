@@ -14,6 +14,12 @@ output="${2:-/root/autodl-tmp/outputs_casl/compute_lab_v1}"
 config="${COMPUTE_LAB_CONFIG:-configs/compute_lab.yaml}"
 phase="${COMPUTE_LAB_PHASE:-all}"
 if [[ "$action" == start || "$action" == resume ]]; then
+  # Reproduce the recorded runtime search path, independent of the caller's shell.
+  # Identity checking remains strict; do not accumulate CUDA entries on each resume.
+  probe_source="${COMPUTE_LAB_INHERIT:-$output}"
+  if [[ -f "$probe_source/probe/probe.json" ]]; then
+    export LD_LIBRARY_PATH="$("${TORCH_PYTHON:-/root/miniconda3/bin/python}" -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity"].get("cuda_path") or "")' "$probe_source/probe/probe.json")"
+  fi
   "${TORCH_PYTHON:-/root/miniconda3/bin/python}" -m cognitive_ultrasound.compute_lab.readiness check
   python -m pip check
   mkdir -p "$(dirname "$output")"
