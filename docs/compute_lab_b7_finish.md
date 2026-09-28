@@ -19,3 +19,7 @@ cat /root/autodl-tmp/outputs_casl/compute_lab_v5/status.json
 等待期间看原 v5 日志及当前工作器日志。接续完成状态可能是 `finished_with_gaps`，这保留先前Torch短测失败及其他未通过项，不代表所有实验成功。只有同级 `.bundle.json` 才表示结果包校验完成。
 
 接续器尊重 `STOP`，不会自动清除用户停止请求。若异常停止，先查日志和真实进程状态，不要用原 `run_compute_lab.sh resume` 恢复全预算循环。
+
+容量汇总修复记录：首个容量工作器成功后，协调器曾因重复传入 `batch` 报错。`2f75b7b` 仅修复结果字典合并，服务器在原冻结版本上 cherry-pick 为 `0b8d80b`。接续器核对旧指纹与这一处精确替换，记录 `source_repair_capacity_merge.json`，不改旧 identity，也不豁免其他源码变化。修复后使用 `.cache/finish_compute_lab_b7.py --output ... --resume-foundation` 继续，已有结果直接复用。
+
+关机判据：`compute_lab_v5.finish7.status.json` 的 `status` 为 `completed` 或 `finished_with_gaps`，且 `bundle_verified` 为 `true`。`failed_or_stopped` 是异常/停止，不能当作全部工作完成；`running_foundation` 表示后续仍在运行。原 `status.json` 可能先显示计算结束而仍在打包，不能仅靠该文件或GPU瞬时利用率决定关机。
