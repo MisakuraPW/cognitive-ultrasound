@@ -5,6 +5,35 @@ import time
 import numpy as np
 
 
+def compiled_probe_checks(actual, expected, repeated, *, approximate):
+    """Separate numerical equivalence from a runnable approximation.
+
+    No tolerance is changed. Nonfinite, shape/dtype errors, lost gradients and
+    unstable repeats remain fatal, including for B candidates.
+    """
+    from .protocol import numeric
+
+    records = []
+    if not (len(actual) == len(expected) == len(repeated)):
+        raise ValueError("Compiled output count changed")
+    for a, b, again in zip(actual, expected, repeated):
+        a, b, again = map(np.asarray, (a, b, again))
+        if a.shape != b.shape or a.dtype != b.dtype or again.shape != a.shape or again.dtype != a.dtype:
+            raise ValueError("Compiled output shape/dtype changed")
+        if not all(np.isfinite(x).all() for x in (a, b, again)):
+            raise FloatingPointError("Nonfinite compiled/eager output or input gradient")
+        if a.tobytes() != again.tobytes():
+            raise RuntimeError("Compiled repeated input is not bitwise stable")
+        check = numeric(a, b)
+        check["relative_l2"] = float(np.linalg.norm(a.astype(float)-b.astype(float)) / max(np.linalg.norm(b.astype(float)), 1e-30))
+        records.append(check)
+    passed = all(x["passed"] for x in records)
+    if not passed and not approximate:
+        raise AssertionError("Compiled/eager numerical equivalence failed at unchanged 2e-4 tolerance")
+    return dict(passed=passed, checks=records, repeat_bitwise=True,
+                disposition="equivalent" if passed else "approximate_difference_recorded; quality unassessed")
+
+
 class JaxEngine:
     def __init__(self, cfg, profile, budget, export):
         from ..preparation.casl import Adapter
@@ -180,14 +209,34 @@ class TorchEngine:
             base = tuple(
                 nchw(data[k], "cuda") for k in ("x", "measurement", "mask", "noise", "signal")
             )
+        # Standalone input-gradient diagnostic, separate from the fused step.
+        # It does not alter the sampler used for timing or closed-loop evaluation.
+        gradient = lambda *args: self.model.grad_fn(*args)[0]
+        compiled_gradient = torch.compile(gradient, fullgraph=True)
+        records = []
+        arrays = lambda values: [x.detach().cpu().numpy() for x in values]
         for factor in (1.0, 0.73, 0.91):
             args = (base[0] * factor, base[1] * factor, *base[2:], base[3] * 0.9, base[4] * 1.01)
             expected = self.model.dps_step(*args)
             actual = self.model.step_fn(*args)
-            for a, b in zip(actual, expected):
-                torch.testing.assert_close(a, b, rtol=2e-4, atol=2e-4)
-        self.probes["compiled_input_gradient"] = True
-        self.probes["internal_correctness"] = self.profile.mode == "compile"
+            repeated = self.model.step_fn(*args)
+            step = compiled_probe_checks(arrays(actual), arrays(expected), arrays(repeated), approximate=self.profile.category == "B")
+            expected_g, actual_g = gradient(*args[:5]), compiled_gradient(*args[:5])
+            repeated_g = compiled_gradient(*args[:5])
+            if torch.count_nonzero(expected_g).item() and not torch.count_nonzero(actual_g).item():
+                raise RuntimeError("Compiled DPS input gradient disappeared")
+            grad = compiled_probe_checks(arrays([actual_g]), arrays([expected_g]), arrays([repeated_g]), approximate=self.profile.category == "B")
+            records.append(dict(factor=factor, fused_step=step, standalone_input_gradient=grad))
+        passed = all(r[k]["passed"] for r in records for k in ("fused_step", "standalone_input_gradient"))
+        self.probes["compiled_eager_checks"] = records
+        self.probes["compiled_eager_equivalent"] = passed
+        self.probes["compiled_input_gradient"] = all(r["standalone_input_gradient"]["passed"] for r in records)
+        self.probes["runtime_integrity"] = True
+        self.probes["internal_correctness"] = passed and self.profile.mode == "compile"
+        self.probes["approximate_diagnostics_only"] = not passed
+        import torch._inductor.config as compiler_config
+
+        self.probes["emulate_precision_casts"] = compiler_config.emulate_precision_casts
         self.probes["deterministic_algorithms"] = True
         self.probes["compiler_threads"] = 1
 
@@ -243,7 +292,7 @@ class TorchEngine:
 
             validate_capture(self.graph, self.model, args, self.profile.steps)
             self.probes["capture_changed_inputs_and_owned_outputs"] = True
-            self.probes["internal_correctness"] = True
+            self.probes["internal_correctness"] = self.probes.get("compiled_eager_equivalent", False)
             setup = time.perf_counter() - begin
         fn = (
             self.graph
