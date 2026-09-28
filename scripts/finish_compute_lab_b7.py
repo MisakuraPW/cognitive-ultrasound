@@ -6,8 +6,10 @@ Original science/source identity and completed evidence remain untouched.
 """
 
 import argparse
+import hashlib
 import os
 import shutil
+import subprocess
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -17,6 +19,40 @@ from cognitive_ultrasound.compute_lab.suite import Suite, owned_alive
 from cognitive_ultrasound.preparation.common import atomic_json, read_json, source_identity
 from cognitive_ultrasound.preparation.suite import run_lock
 from cognitive_ultrasound.provenance import sha256
+
+
+def validate_source_with_capacity_repair(root):
+    """Accept only the exact result-dictionary repair, never a general identity waiver."""
+    from cognitive_ultrasound.config import ROOT
+
+    old = read_json(root / "identity.json")["source"]
+    current = source_identity()
+    if current == old:
+        return
+    file = "src/cognitive_ultrasound/compute_lab/suite.py"
+    changed = {p for p in set(old) | set(current) if old.get(p) != current.get(p)}
+    if changed != {file}:
+        raise RuntimeError("Pinned source changed beyond reviewed capacity result merge")
+    before = subprocess.check_output(["git", "show", f"ae83eaf:{file}"], cwd=ROOT)
+    if hashlib.sha256(before).hexdigest() != old[file]:
+        raise RuntimeError("Original source is not the reviewed frozen coordinator")
+    source = b"capacity_results.append(dict(batch=batch, **value))"
+    replacement = b"capacity_results.append(dict(value, batch=batch))"
+    if before.count(source) != 1:
+        raise RuntimeError("Capacity repair anchor is not unique")
+    expected = hashlib.sha256(before.replace(source, replacement)).hexdigest()
+    if current[file] != expected:
+        raise RuntimeError("Coordinator differs beyond the exact one-line metadata repair")
+    atomic_json(
+        root / "source_repair_capacity_merge.json",
+        dict(
+            file=file,
+            before_sha256=old[file],
+            after_sha256=current[file],
+            original_identity_untouched=True,
+            scope="Result dictionary merge only; inference/training/selection arithmetic unchanged",
+        ),
+    )
 
 
 def confirmation_names(selection):
@@ -179,8 +215,7 @@ def finish(root, selection, state_file):
         if (root / "STOP").exists():
             raise RuntimeError("STOP retained; no automatic resume")
         identity = read_json(root / "identity.json")
-        if source_identity() != identity["source"]:
-            raise RuntimeError("Pinned source changed; no identity rewrite")
+        validate_source_with_capacity_repair(root)
         evidence = check_ready(root, selection)
         cfg = read_json(root / "config.json")
         env = probe(cfg, root / "scope_probe")
@@ -203,7 +238,10 @@ def finish(root, selection, state_file):
             scientific_thresholds_unchanged=True,
             automatic_adoption=False,
         )
-        atomic_json(root / "scope_amendment.json", plan)
+        plan_file = root / "scope_amendment.json"
+        if plan_file.exists():
+            plan_file = root / "scope_restarts" / f"{os.getpid()}.json"
+        atomic_json(plan_file, plan)
         suite = Suite(cfg, root)
         suite.state.update(completed=state.get("completed", []), failed=state.get("failed", []))
         try:
@@ -252,6 +290,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--diagnosis", type=Path)
+    parser.add_argument("--resume-foundation", action="store_true")
     args = parser.parse_args()
     root = args.output.resolve()
     lock = root / ".scope_finish"
@@ -268,7 +307,13 @@ def main():
                     shutil.copy2(src, dest / name)
                     if sha256(src) != sha256(dest / name):
                         raise RuntimeError("Diagnosis evidence copy checksum mismatch")
-            wait_for_boundary(root, selection, state_file)
+            if args.resume_foundation:
+                if read_json(root / "scope_amendment.json")["confirmation_budgets"] != [7]:
+                    raise RuntimeError(
+                        "Explicit foundation resume requires the existing b7 amendment"
+                    )
+            else:
+                wait_for_boundary(root, selection, state_file)
             finish(root, selection, state_file)
         except BaseException as exc:
             atomic_json(

@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -114,3 +115,54 @@ def test_changed_source_rejected_before_clearing_boundary(prepared, monkeypatch)
     with pytest.raises(RuntimeError, match="Pinned source changed"):
         module.finish(root, selection, root / "control.json")
     assert (root / "PAUSE_AFTER_JOB").exists()
+
+
+def test_only_exact_capacity_metadata_repair_is_allowed(prepared, monkeypatch):
+    root, _ = prepared
+    file = "src/cognitive_ultrasound/compute_lab/suite.py"
+    before = b"capacity_results.append(dict(batch=batch, **value))"
+    after = b"capacity_results.append(dict(value, batch=batch))"
+    save(root / "identity.json", dict(source={file: hashlib.sha256(before).hexdigest()}))
+    original = (root / "identity.json").read_bytes()
+    monkeypatch.setattr(module.subprocess, "check_output", lambda *a, **k: before)
+    monkeypatch.setattr(
+        module, "source_identity", lambda: {file: hashlib.sha256(after).hexdigest()}
+    )
+    module.validate_source_with_capacity_repair(root)
+    assert (root / "identity.json").read_bytes() == original
+    assert (root / "source_repair_capacity_merge.json").exists()
+    monkeypatch.setattr(
+        module, "source_identity", lambda: {file: hashlib.sha256(after + b"change").hexdigest()}
+    )
+    with pytest.raises(RuntimeError, match="exact one-line"):
+        module.validate_source_with_capacity_repair(root)
+
+
+def test_real_capacity_worker_payload_does_not_break_training_controller(tmp_path, monkeypatch):
+    from cognitive_ultrasound.compute_lab import training
+    from cognitive_ultrasound.compute_lab.suite import Suite
+
+    class ReachedTrainingShort(Exception):
+        pass
+
+    monkeypatch.setattr(training, "prepare_batches", lambda *a: None)
+    suite = Suite(dict(training_batch_size=32), tmp_path)
+
+    def fake_job(name, task, backend):
+        if task.get("initialize"):
+            return dict(status="completed")
+        if task["kind"] == "capacity":
+            if task["batch"] == 1:
+                return dict(status="completed", batch=1, loss=0.7)
+            return dict(status="failed")
+        raise ReachedTrainingShort
+
+    monkeypatch.setattr(suite, "job", fake_job)
+    with pytest.raises(ReachedTrainingShort):
+        suite.train()
+    result = json.loads((tmp_path / "capacity.json").read_text())
+    assert result["records"] == [
+        dict(batch=1, status="completed", loss=0.7),
+        dict(batch=8, status="failed"),
+    ]
+    assert result["scientific_batch_size"] == 32
