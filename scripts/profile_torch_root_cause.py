@@ -37,12 +37,16 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--deterministic", type=int, choices=[0, 1], required=True)
     parser.add_argument("--bilinear", choices=["original", "separable"], default="original")
+    parser.add_argument(
+        "--layout", choices=["channels_last", "contiguous"], default="channels_last"
+    )
     args = parser.parse_args()
     root, output = Path(args.root), Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     os.environ["TORCHINDUCTOR_COMPILE_THREADS"] = "1"
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     import torch
+    import torch._inductor.config as inductor_config
 
     from cognitive_ultrasound.torch_casl.native import CapturedFrame, FrozenGraph, NativeCASL, nchw
 
@@ -51,6 +55,12 @@ def main():
     torch.backends.cudnn.allow_tf32 = False
     torch.set_float32_matmul_precision("highest")
     torch.use_deterministic_algorithms(bool(args.deterministic))
+    memory_format = getattr(
+        torch, "channels_last" if args.layout == "channels_last" else "contiguous_format"
+    )
+    if args.layout == "contiguous":
+        # A bounded diagnostic of the layout conversions seen in the kernel trace.
+        inductor_config.layout_optimization = False
     if args.bilinear == "separable":
         original_interpolate = torch.nn.functional.interpolate
 
@@ -70,7 +80,7 @@ def main():
     with h5py.File(source) as h:
         before = {k: v[()] for k, v in h["1"].items()}
         current = {k: v[()] for k, v in h["2"].items()}
-    network = FrozenGraph(root / "export").to(device="cuda", memory_format=torch.channels_last)
+    network = FrozenGraph(root / "export").to(device="cuda", memory_format=memory_format)
     model = NativeCASL(network, 14).to("cuda")
     frame_args = (
         nchw(current["resume_buffer"][None], "cuda").expand(2, -1, -1, -1),
@@ -78,6 +88,8 @@ def main():
         nchw(before["resume_posterior_samples"], "cuda"),
         nchw(current["noise"], "cuda"),
     )
+    if args.layout == "contiguous":
+        frame_args = tuple(a.contiguous() for a in frame_args)
     measurement, mask, previous, z = frame_args
     t = torch.ones((2, 1, 1, 1), device="cuda") * model.max_t
     dt = model.max_t / 500
@@ -156,6 +168,8 @@ def main():
     result = dict(
         deterministic=bool(args.deterministic),
         bilinear=args.bilinear,
+        layout=args.layout,
+        inductor_layout_optimization=inductor_config.layout_optimization,
         precision="fp32",
         steps=50,
         particles=2,
