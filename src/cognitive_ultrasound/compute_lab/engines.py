@@ -116,6 +116,13 @@ class JaxEngine:
 
 class TorchEngine:
     def __init__(self, cfg, profile, budget, export):
+        import os
+
+        # All compilation happens in this worker: compiler children cannot inherit an
+        # open trajectory descriptor. This changes setup cost, not scientific settings.
+        if profile.mode in ("compile", "graph"):
+            os.environ["TORCHINDUCTOR_COMPILE_THREADS"] = "1"
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         import torch
 
         from ..preparation.common import read_json
@@ -155,9 +162,34 @@ class TorchEngine:
             raise FloatingPointError("Nonfinite Torch operator/input gradient")
         self.model.budget = budget
         if profile.mode in ("compile", "graph"):
+            import torch._inductor.config as compiler_config
+
+            compiler_config.compile_threads = 1
+            compiler_config.worker_start_method = "spawn"
+            torch.use_deterministic_algorithms(True)
             self.model.step_fn = torch.compile(self.model.dps_step, fullgraph=True)
             self.model.select = torch.compile(self.model.select, fullgraph=True)
+            self.validate_compiled_gradient(export)
         self.graph = None
+
+    def validate_compiled_gradient(self, export):
+        from ..torch_casl.native import nchw
+
+        torch = self.torch
+        with np.load(export / "probes.npz") as data:
+            base = tuple(
+                nchw(data[k], "cuda") for k in ("x", "measurement", "mask", "noise", "signal")
+            )
+        for factor in (1.0, 0.73, 0.91):
+            args = (base[0] * factor, base[1] * factor, *base[2:], base[3] * 0.9, base[4] * 1.01)
+            expected = self.model.dps_step(*args)
+            actual = self.model.step_fn(*args)
+            for a, b in zip(actual, expected):
+                torch.testing.assert_close(a, b, rtol=2e-4, atol=2e-4)
+        self.probes["compiled_input_gradient"] = True
+        self.probes["internal_correctness"] = self.profile.mode == "compile"
+        self.probes["deterministic_algorithms"] = True
+        self.probes["compiler_threads"] = 1
 
     def reset(self, seed, initial=None):
         if initial is None:
@@ -207,19 +239,11 @@ class TorchEngine:
         if not cold and self.profile.mode == "graph" and self.graph is None:
             begin = time.perf_counter()
             self.graph = CapturedFrame(self.model, args, self.profile.steps)
-            held = self.graph(*args)
-            copied = tuple(x.clone() for x in held)
-            changed = (args[0] * 0.97, args[1], args[2] * 0.99, args[3] * 0.9)
-            captured = self.graph(*changed)
-            expected = self.model.frame(*changed, steps=self.profile.steps)
-            for actual, wanted in zip(captured, expected):
-                if actual.dtype == torch.bool:
-                    torch.testing.assert_close(actual, wanted, rtol=0, atol=0)
-                else:
-                    torch.testing.assert_close(actual, wanted, rtol=2e-4, atol=2e-4)
-            for actual, wanted in zip(held, copied):
-                torch.testing.assert_close(actual, wanted, rtol=0, atol=0)
+            from ..torch_casl.native import validate_capture
+
+            validate_capture(self.graph, self.model, args, self.profile.steps)
             self.probes["capture_changed_inputs_and_owned_outputs"] = True
+            self.probes["internal_correctness"] = True
             setup = time.perf_counter() - begin
         fn = (
             self.graph

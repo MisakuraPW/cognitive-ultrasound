@@ -23,11 +23,14 @@ def main():
             "framework",
             "bundle",
             "closure",
+            "pause-after-current",
         ],
     )
     p.add_argument("--config", default="configs/compute_lab.yaml")
     p.add_argument("--output", default="/root/autodl-tmp/outputs_casl/compute_lab_v1")
     p.add_argument("--task")
+    p.add_argument("--phase", choices=["jax", "torch", "all"], default="all")
+    p.add_argument("--inherit-from")
     p.add_argument("--framework", choices=["jax", "tensorflow", "torch"])
     args = p.parse_args()
     root = Path(args.output).resolve()
@@ -48,6 +51,11 @@ def main():
         state["coordinator_alive"] = owned_alive(state.get("pid"), state.get("created"))
         state["worker_alive"] = owned_alive(state.get("worker_pid"), state.get("worker_created"))
         print(json.dumps(state, ensure_ascii=False, indent=2))
+        return
+    if args.command == "pause-after-current":
+        state = read_json(root / "status.json")
+        (root / "PAUSE_AFTER_JOB").write_text(state["stage"])
+        print("Will pause after current job, before launching the next worker")
         return
     if args.command == "stop":
         root.mkdir(parents=True, exist_ok=True)
@@ -86,9 +94,15 @@ def main():
 
                 repair(task, output)
         except BaseException as exc:
+            from .scheduling import failure_kind
+
             atomic_json(
                 output / "result.json",
-                dict(status="failed", error=type(exc).__name__ + ": " + str(exc)),
+                dict(
+                    status="failed",
+                    error=type(exc).__name__ + ": " + str(exc),
+                    failure_kind=failure_kind(type(exc).__name__ + ": " + str(exc)),
+                ),
             )
             raise
     elif args.command == "probe":
@@ -115,7 +129,14 @@ def main():
 
             with run_lock(root):
                 (root / "STOP").unlink(missing_ok=True)
-        run(cfg, root, "calibrate" if args.command == "calibrate" else "run")
+                (root / "PAUSE_AFTER_JOB").unlink(missing_ok=True)
+        run(
+            cfg,
+            root,
+            "calibrate" if args.command == "calibrate" else "run",
+            args.phase,
+            args.inherit_from,
+        )
 
 
 if __name__ == "__main__":

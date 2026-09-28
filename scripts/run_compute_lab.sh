@@ -12,11 +12,16 @@ export OMP_NUM_THREADS=4 TF_NUM_INTRAOP_THREADS=4 TF_NUM_INTEROP_THREADS=1
 action="${1:-start}"
 output="${2:-/root/autodl-tmp/outputs_casl/compute_lab_v1}"
 config="${COMPUTE_LAB_CONFIG:-configs/compute_lab.yaml}"
+phase="${COMPUTE_LAB_PHASE:-all}"
 if [[ "$action" == start || "$action" == resume ]]; then
+  "${TORCH_PYTHON:-/root/miniconda3/bin/python}" -m cognitive_ultrasound.compute_lab.readiness check
+  python -m pip check
   mkdir -p "$(dirname "$output")"
   command=run
   [[ "$action" == resume ]] && command=resume
-  nohup python -m cognitive_ultrasound.compute_lab "$command" --config "$config" --output "$output" >>"$output.console.log" 2>&1 < /dev/null &
+  options=(--phase "$phase")
+  [[ -z "${COMPUTE_LAB_INHERIT:-}" ]] || options+=(--inherit-from "$COMPUTE_LAB_INHERIT")
+  nohup python -m cognitive_ultrasound.compute_lab "$command" --config "$config" --output "$output" "${options[@]}" >>"$output.console.log" 2>&1 < /dev/null &
   printf 'Coordinator PID: %s\nLog: %s.console.log\n' "$!" "$output"
 else
   python -m cognitive_ultrasound.compute_lab "$action" --config "$config" --output "$output"

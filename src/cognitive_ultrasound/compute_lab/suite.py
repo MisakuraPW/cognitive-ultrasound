@@ -17,9 +17,14 @@ from ..provenance import sha256
 from .data import lock_manifest, throughput
 from .environment import probe
 from .protocol import profiles, quality, science_identity, select
+from .scheduling import cost_decision, fastest_torch, record_decision
 
 
 class Stopped(Exception):
+    pass
+
+
+class BoundaryPause(Exception):
     pass
 
 
@@ -78,6 +83,14 @@ class Suite:
     def job(self, name, task, backend="jax"):
         if (self.root / "STOP").exists():
             raise Stopped()
+        boundary = self.root / "PAUSE_AFTER_JOB"
+        if boundary.exists():
+            target = boundary.read_text().strip()
+            if (
+                target in ("initializing", "jax_boundary", "torch_boundary")
+                or (self.root / "jobs" / target / "result.json").exists()
+            ):
+                raise BoundaryPause()
         directory = self.root / "jobs" / name
         result = directory / "result.json"
         if result.exists():
@@ -214,6 +227,9 @@ class Suite:
             operator = diag.get("operator_checks")
             op_pass = operator.get("passed", False) if operator else False
             record["equivalence_passed"] = record["equivalence_passed"] and replay_pass and op_pass
+            record["internal_correctness"] = bool(
+                diag.get("operator_checks", {}).get("internal_correctness", False)
+            )
             record["verdict"] = (
                 "bitwise_same"
                 if record["equivalence_passed"] and record["bitwise"]
@@ -288,6 +304,16 @@ class Suite:
         )
         return short_results
 
+    def worthwhile(self, profile, short):
+        reference = read_json(self.root / "jobs/short_official_b14/result.json")
+        decision = cost_decision(short, reference)
+        record_decision(self.root, profile.name, decision)
+        # Never recompute a compatible completed job just because the new cost gate differs.
+        complete = self.root / "jobs" / f"development_{profile.name}_b14/result.json"
+        return (complete.exists() and read_json(complete)["status"] == "completed") or decision[
+            "proceed"
+        ]
+
     def train(self):
         from .training import compare, prepare_batches
 
@@ -325,6 +351,26 @@ class Suite:
                     ),
                 )
             values = {}
+            training_shorts = {}
+            for candidate_mode in ("eager", "graph"):
+                training_shorts[candidate_mode] = self.job(
+                    f"train_{workload}_{candidate_mode}_short",
+                    dict(kind="training", workload=workload, mode=candidate_mode, until=3),
+                    "tensorflow",
+                )
+            successful = {m: r for m, r in training_shorts.items() if r["status"] == "completed"}
+            projected = {
+                m: 2
+                * (
+                    r["records"][0]["seconds"]
+                    + 199 * np_mean([x["seconds"] for x in r["records"][1:]])
+                )
+                for m, r in successful.items()
+            }
+            print(
+                f"TRAINING_COST {workload}: 400 actual updates per admitted mode (200 continuous + 100 + 100 resume), projected seconds={projected}; initialization/checkpoints extra",
+                flush=True,
+            )
             for mode in ("eager", "graph"):
                 prefix = f"train_{workload}_{mode}"
                 warmup = self.job(
@@ -334,6 +380,24 @@ class Suite:
                 )
                 if warmup["status"] != "completed":
                     continue
+                if (
+                    mode == "graph"
+                    and "eager" in projected
+                    and projected[mode] > 4 * projected["eager"]
+                ):
+                    record_decision(
+                        self.root,
+                        prefix,
+                        dict(
+                            proceed=False,
+                            kind="performance_not_worth_continuing",
+                            projected_400_s=projected[mode],
+                            reference_400_s=projected["eager"],
+                            maximum_ratio=4,
+                            reason="Graph route exceeds finite relative cost gate; eager recovery still executed",
+                        ),
+                    )
+                    continue
                 estimate = warmup["records"][0]["seconds"] + 199 * np_mean(
                     [r["seconds"] for r in warmup["records"][1:]]
                 )
@@ -342,6 +406,7 @@ class Suite:
                     dict(
                         measured_updates=3,
                         projected_200_s=estimate,
+                        projected_total_400_s=2 * estimate,
                         production_state_advanced=False,
                     ),
                 )
@@ -406,22 +471,57 @@ class Suite:
             report[workload] = values
             atomic_json(self.root / "training_report.json", report)
 
-    def run(self, action):
+    def run(self, action, phase="all"):
         candidates = profiles()
-        short = self.calibration(candidates)
+        jax = {k: p for k, p in candidates.items() if p.backend == "jax"}
+        short = self.calibration(jax)
         if action == "calibrate":
             return
-        from .closure import finish
-
-        finish(self)
         dev = []
-        for p in candidates.values():
-            if short[p.name]["status"] == "completed":
+        for p in jax.values():
+            if short[p.name]["status"] == "completed" and self.worthwhile(p, short[p.name]):
                 value = self.inference(p, "development", 14)
                 if value["status"] == "completed":
                     dev.append(value)
-        torch = [x for x in dev if x["profile"]["backend"] == "torch"]
-        fastest = min(torch, key=lambda x: x["closed_loop_s"])["profile"]["mode"] if torch else None
+        self.save(stage="jax_boundary")
+        if phase == "jax":
+            raise BoundaryPause()
+        # Repair validation always precedes extension. Eager is retained historical evidence,
+        # never the implicit fallback for four expensive approximation DEV jobs.
+        for mode in ("compile", "graph"):
+            p = candidates["torch_" + mode]
+            record = self.inference(p, "debug", 14, True)
+            internal = record.get("operator_checks", {}).get("internal_correctness", False)
+            if record["status"] == "completed" and internal and self.worthwhile(p, record):
+                value = self.inference(p, "development", 14)
+                if value["status"] == "completed":
+                    dev.append(value)
+            else:
+                record_decision(
+                    self.root,
+                    p.name,
+                    dict(
+                        proceed=False,
+                        kind=record.get("failure_kind", "numerical_correctness_failure")
+                        if not internal
+                        else "performance_not_worth_continuing",
+                        reason="Mode must pass internal changed-input/gradient checks and finite cost gate before DEV",
+                    ),
+                )
+        fastest = fastest_torch(dev)
+        record_decision(
+            self.root,
+            "torch_extension",
+            dict(
+                proceed=fastest is not None,
+                mode=fastest,
+                kind="cost_eligible" if fastest else "performance_or_correctness_no_eligible_mode",
+                reason="Only repaired compile/graph faster than official DEV; no eager fallback",
+            ),
+        )
+        self.save(stage="torch_boundary")
+        if phase == "torch":
+            raise BoundaryPause()
         combination = [
             x["profile"]["name"]
             for x in dev
@@ -432,7 +532,8 @@ class Suite:
         additional = profiles(fastest, combination)
         for name in sorted(set(additional) - set(candidates)):
             p = additional[name]
-            if self.inference(p, "debug", 14, True)["status"] == "completed":
+            short_value = self.inference(p, "debug", 14, True)
+            if short_value["status"] == "completed" and self.worthwhile(p, short_value):
                 value = self.inference(p, "development", 14)
                 if value["status"] == "completed":
                     dev.append(value)
@@ -460,6 +561,9 @@ class Suite:
                 dict(kind="profile", profile=asdict(additional[name])),
                 additional[name].backend,
             )
+        from .closure import finish
+
+        finish(self)
         self.train()
 
 
@@ -473,7 +577,7 @@ def ensure_identity(file, identity):
     atomic_json(file, identity)
 
 
-def run(cfg, root, action="run"):
+def run(cfg, root, action="run", phase="all", inherit_from=None):
     root.mkdir(parents=True, exist_ok=True)
     with run_lock(root):
         if (root / "STOP").exists():
@@ -498,6 +602,10 @@ def run(cfg, root, action="run"):
         environment = probe(cfg, root / "probe")
         if not environment["frameworks"]["jax"].get("passed"):
             raise RuntimeError("Official JAX GPU probe failed; see probe/jax.log")
+        if inherit_from:
+            from .migration import inherit
+
+            inherit(inherit_from, root, cfg, environment["fingerprint"])
         from .report import closure_audit
 
         closure_audit(cfg, root)
@@ -520,7 +628,7 @@ def run(cfg, root, action="run"):
             )
         suite = Suite(cfg, root)
         try:
-            suite.run(action)
+            suite.run(action, phase)
             suite.save(
                 status="calibrated"
                 if action == "calibrate"
@@ -530,6 +638,8 @@ def run(cfg, root, action="run"):
             )
         except Stopped:
             suite.save(status="stopped")
+        except BoundaryPause:
+            suite.save(status="paused_at_boundary", worker_pid=None, worker_created=None)
         except BaseException as exc:
             suite.save(status="failed", error=str(exc))
             raise

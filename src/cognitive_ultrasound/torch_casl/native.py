@@ -178,8 +178,32 @@ class CapturedFrame:
             self.outputs = model.frame(*self.inputs, steps=steps)
 
     def __call__(self, *args):
+        if len(args) != len(self.inputs) or any(
+            a.shape != b.shape or a.dtype != b.dtype or a.device != b.device
+            for a, b in zip(self.inputs, args)
+        ):
+            raise ValueError("CUDA Graph input signature changed; explicit recapture required")
         for target, source in zip(self.inputs, args):
             target.copy_(source)
         self.graph.replay()
         # No output may alias graph storage after the next call.
         return tuple(x.clone() for x in self.outputs)
+
+
+def validate_capture(graph, model, args, steps):
+    """Several changed inputs and repeated replays, including owned-output verification."""
+    held = graph(*args)
+    copies = tuple(x.clone() for x in held)
+    for factor in (1.0, 0.97, 0.83, 1.0):
+        changed = (args[0] * factor, args[1], args[2] * factor, args[3] * factor)
+        captured = graph(*changed)
+        expected = model.frame(*changed, steps=steps)
+        repeated = model.frame(*changed, steps=steps)
+        for actual, wanted, again in zip(captured, expected, repeated):
+            discrete = wanted.dtype == torch.bool
+            torch.testing.assert_close(again, wanted, rtol=0, atol=0)
+            torch.testing.assert_close(
+                actual, wanted, rtol=0 if discrete else 2e-4, atol=0 if discrete else 2e-4
+            )
+        for original, copied in zip(held, copies):
+            torch.testing.assert_close(original, copied, rtol=0, atol=0)

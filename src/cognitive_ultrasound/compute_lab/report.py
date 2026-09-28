@@ -144,6 +144,41 @@ def report(cfg, root):
         elif r.get("status") == "failed":
             records.append(dict(path=str(f), **r))
     atomic_json(root / "matrix.json", records)
+    scheduling = read_json(root / "scheduling.json") if (root / "scheduling.json").exists() else {}
+    with (root / "remaining_tasks.md").open("w", encoding="utf-8") as stream:
+        stream.write("# 有界任务进度与成本决策\n\n")
+        stream.write(
+            "完成只表示执行完成；数值、质量、成本是独立结论。原始失败日志保留，不扩大搜索。\n\n"
+        )
+        stream.write("|阶段|范围|状态依据|\n|---|---|---|\n")
+        for stage, scope, evidence in [
+            ("JAX", "固定开发组", "jobs/development_jax_*"),
+            ("Torch修复", "compile/graph短测及通过后的FP32开发", "jobs/short_torch_*"),
+            (
+                "Torch扩展",
+                "只采用比官方DEV快且内部校验通过的compile/graph",
+                "scheduling.json: torch_extension",
+            ),
+            ("确认", "开发选择至多4版本、7/14/28预算", "selection.json; jobs/confirmation_*"),
+            ("历史收尾", "仅closure原设计缺失任务", "closure_completion.json"),
+            (
+                "训练恢复",
+                "4负载×2模式×400真实更新，最多3200，另有短测/容量",
+                "training_report.json",
+            ),
+            ("归档", "校验包、事实CSV、报告", "相邻 *.bundle.json"),
+        ]:
+            stream.write(f"|{stage}|{scope}|{evidence}|\n")
+        stream.write("\n## 当前筛选\n\n")
+        for name, value in scheduling.items():
+            stream.write(f"- {name}: {value}\n")
+        if (root / "estimates.json").exists():
+            stream.write("\n## 短测估时（不保证，未含所有编译和I/O）\n\n")
+            for r in read_json(root / "estimates.json")["candidates"]:
+                if r.get("development_hours") is not None:
+                    stream.write(
+                        f"- {r['name']}: DEV {r['development_hours']:.3f} h；3预算确认 {r['confirmation_hours']:.3f} h。\n"
+                    )
     fields = [
         "experiment",
         "cohort",
@@ -189,6 +224,7 @@ def report(cfg, root):
         "# 加速与计算基座审计",
         "",
         "默认 baseline：官方 FP32 / 50 步 / 逐步 DPS。没有自动采用近似版本。",
+        "修复批次的继承记录见 inheritance.json，有限成本筛选见 scheduling.json，剩余任务见 remaining_tasks.md。",
         "A 表示修改意图，等价性必须另看数值、离散动作和完整闭环检查；B 必须独立比较。",
         "",
         "## 历史解释追加（不覆盖原结论）",
