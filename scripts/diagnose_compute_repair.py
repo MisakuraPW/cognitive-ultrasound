@@ -3,6 +3,8 @@
 import argparse
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import h5py
@@ -16,9 +18,49 @@ def main():
     p.add_argument("--root", required=True)
     p.add_argument("--output", required=True)
     p.add_argument("--deterministic", action="store_true")
+    p.add_argument("--fd-only", action="store_true")
     args = p.parse_args()
     root, out = Path(args.root), Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
+    if args.fd_only:
+        from cognitive_ultrasound.compute_lab.data import Writer
+
+        results = []
+        for secure in (False, True):
+            file = out / "exec_lock_control.h5"
+            writer = Writer(file) if secure else None
+            handle = writer.h5 if writer else h5py.File(file, "w")
+            handle["x"] = [1]
+            inheritable = os.get_inheritable(handle.id.get_vfd_handle())
+            child = subprocess.Popen(
+                [sys.executable, "-c", "import time; print('ready',flush=True); time.sleep(30)"],
+                close_fds=False,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                assert child.stdout.readline().strip() == "ready"
+                writer.close() if writer else handle.close()
+                try:
+                    with h5py.File(file) as checked:
+                        assert checked["x"][0] == 1
+                    locked = False
+                except BlockingIOError:
+                    locked = True
+                assert locked is (not secure)
+                results.append(
+                    dict(
+                        secure=secure,
+                        descriptor_inheritable=inheritable,
+                        lock_persists_after_parent_close=locked,
+                    )
+                )
+            finally:
+                child.terminate()
+                child.wait(timeout=5)
+        (out / "descriptor_regression.json").write_text(json.dumps(results, indent=2))
+        print(json.dumps(results), flush=True)
+        return
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.set_float32_matmul_precision("highest")

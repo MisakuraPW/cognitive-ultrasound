@@ -1,6 +1,7 @@
 """Bounded ordered I/O and immutable cohort lock. Never selects on model outcomes."""
 
 import hashlib
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -119,6 +120,10 @@ class Writer:
 
     def __init__(self, file, asynchronous=False):
         self.h5 = h5py.File(file, "w")
+        # HDF5 sec2 opens inheritable descriptors. Torch's C++ addr2line helper
+        # uses exec without Python's close_fds default and would retain our lock.
+        if os.name == "posix" and self.h5.driver == "sec2":
+            os.set_inheritable(self.h5.id.get_vfd_handle(), False)
         self.pool = ThreadPoolExecutor(max_workers=1) if asynchronous else None
         self.pending = []
         self.index = 0

@@ -12,7 +12,7 @@ git pull --ff-only origin main
 bash scripts/setup_compute_lab.sh && \
 COMPUTE_LAB_INHERIT=/root/autodl-tmp/outputs_casl/compute_lab_v2 \
 COMPUTE_LAB_PHASE=torch \
-bash scripts/run_compute_lab.sh start /root/autodl-tmp/outputs_casl/compute_lab_v3
+bash scripts/run_compute_lab.sh start /root/autodl-tmp/outputs_casl/compute_lab_v4
 ```
 
 `COMPUTE_LAB_PHASE=jax` 在固定 JAX DEV 后停稳；`torch` 在修复短测与允许投入的 FP32 DEV 后停稳；默认 `all` 继续其余任务。安装成功收据与启动时同步依赖核验双重阻断失败安装，即使手动另敲 start 也不会绕过。
@@ -20,16 +20,16 @@ bash scripts/run_compute_lab.sh start /root/autodl-tmp/outputs_casl/compute_lab_
 确认处于 `paused_at_boundary` 后继续全部剩余任务：
 
 ```bash
-bash scripts/run_compute_lab.sh resume /root/autodl-tmp/outputs_casl/compute_lab_v3
-tail -n 60 -F /root/autodl-tmp/outputs_casl/compute_lab_v3.console.log
+bash scripts/run_compute_lab.sh resume /root/autodl-tmp/outputs_casl/compute_lab_v4
+tail -n 60 -F /root/autodl-tmp/outputs_casl/compute_lab_v4.console.log
 ```
 
 查看、边界暂停或立即停止（均显式指定批次）：
 
 ```bash
-bash scripts/run_compute_lab.sh status /root/autodl-tmp/outputs_casl/compute_lab_v3
-bash scripts/run_compute_lab.sh pause-after-current /root/autodl-tmp/outputs_casl/compute_lab_v3
-bash scripts/run_compute_lab.sh stop /root/autodl-tmp/outputs_casl/compute_lab_v3
+bash scripts/run_compute_lab.sh status /root/autodl-tmp/outputs_casl/compute_lab_v4
+bash scripts/run_compute_lab.sh pause-after-current /root/autodl-tmp/outputs_casl/compute_lab_v4
+bash scripts/run_compute_lab.sh stop /root/autodl-tmp/outputs_casl/compute_lab_v4
 ```
 
 边界暂停在当前工作器结束后、下一工作器启动前检查；立即 stop 可能中断当前病例，病例完成收据仍可续用。不要编辑活动工作器使用的源码。源码或环境变化仍要求新批次；本次继承仅适用于已审查的 v2 修复范围，不能当作通用绕过指纹工具。
@@ -48,4 +48,5 @@ bash scripts/run_compute_lab.sh stop /root/autodl-tmp/outputs_casl/compute_lab_v
 
 `status.json` 为 `completed` 或 `finished_with_gaps` 表示有限清单执行结束；后者必须检查失败/跳过项，不能当作全部验证成功。`archive_failed` 表示计算结束但打包未成功。结果包必须有同级 `.bundle.json` 才视为打包校验完成。
 
-下载同级 `compute_lab_v3.results.tar.gz`、其 `.sha256` 和 `compute_lab_v3.bundle.json`。包内含报告、事实CSV、兼容性继承来源、旧失败证据、确认结果及训练验证；不包含可重建的大型参照缓存，不传源码包。
+下载同级 `compute_lab_v4.results.tar.gz`、其 `.sha256` 和 `compute_lab_v4.bundle.json`。包内含报告、事实CSV、兼容性继承来源、旧失败证据、确认结果及训练验证；不包含可重建的大型参照缓存，不传源码包。
+

@@ -21,6 +21,7 @@ ALLOWED = {
     "src/cognitive_ultrasound/compute_lab/migration.py",
     "src/cognitive_ultrasound/compute_lab/scheduling.py",
     "src/cognitive_ultrasound/compute_lab/readiness.py",
+    "src/cognitive_ultrasound/compute_lab/data.py",
     "src/cognitive_ultrasound/torch_casl/native.py",
     "scripts/setup_compute_lab.sh",
     "scripts/run_compute_lab.sh",
@@ -56,6 +57,39 @@ def validate_source(old):
             (ROOT / p).read_text(encoding="utf-8"), name
         ):
             raise ValueError(f"Reused computational dependency changed: {name}")
+    data_path = "src/cognitive_ultrasound/compute_lab/data.py"
+    before = ast.parse(git_bytes(data_path).decode())
+    after = ast.parse((ROOT / data_path).read_text(encoding="utf-8"))
+    # Only the close-on-exec descriptor hygiene is compatible with prior JAX data
+    # results. Do not waive checks for any changes to reading/writing algorithms.
+    after.body = [
+        node
+        for node in after.body
+        if not (
+            isinstance(node, ast.Import) and len(node.names) == 1 and node.names[0].name == "os"
+        )
+    ]
+    writer = next(
+        node for node in after.body if isinstance(node, ast.ClassDef) and node.name == "Writer"
+    )
+    init = next(
+        node
+        for node in writer.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+    )
+    expected = ast.parse(
+        "if os.name == 'posix' and self.h5.driver == 'sec2':\n    os.set_inheritable(self.h5.id.get_vfd_handle(), False)"
+    ).body[0]
+    matches = [
+        node
+        for node in init.body
+        if ast.dump(node, include_attributes=False) == ast.dump(expected, include_attributes=False)
+    ]
+    if len(matches) != 1:
+        raise ValueError("Expected reviewed descriptor hygiene only")
+    init.body.remove(matches[0])
+    if ast.dump(before, include_attributes=False) != ast.dump(after, include_attributes=False):
+        raise ValueError("Data computation changed beyond descriptor hygiene")
     return sorted(changed)
 
 

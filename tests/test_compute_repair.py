@@ -157,3 +157,58 @@ def test_capture_validator_accepts_changed_gradient_outputs():
     model = Model()
     args = tuple(torch.ones(3) * i for i in (1, 2, 3, 4))
     validate_capture(model.frame, model, args, 50)
+
+
+def test_reviewed_data_hygiene_is_the_only_compatible_io_change(monkeypatch):
+    import hashlib
+
+    from cognitive_ultrasound.compute_lab import migration
+    from cognitive_ultrasound.provenance import sha256
+
+    paths = [
+        "src/cognitive_ultrasound/compute_lab/data.py",
+        "src/cognitive_ultrasound/compute_lab/engines.py",
+        "src/cognitive_ultrasound/torch_casl/native.py",
+    ]
+    old = {p: hashlib.sha256(migration.git_bytes(p)).hexdigest() for p in paths}
+    current = {p: sha256(migration.ROOT / p) for p in paths}
+    monkeypatch.setattr(migration, "source_identity", lambda: current)
+    assert "src/cognitive_ultrasound/compute_lab/data.py" in migration.validate_source(old)
+
+
+def test_hdf5_lock_not_inherited_by_exec_child(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    import h5py
+
+    from cognitive_ultrasound.compute_lab.data import Writer
+
+    if os.name != "posix":
+        pytest.skip("POSIX descriptor/exec regression; exercised on AutoDL")
+    file = tmp_path / "trajectory.h5"
+    # Reproduce the original C++ helper pattern first, without changing lock policy.
+    for secure in (False, True):
+        owner = Writer(file) if secure else None
+        handle = owner.h5 if owner else h5py.File(file, "w")
+        handle["x"] = [1]
+        assert os.get_inheritable(handle.id.get_vfd_handle()) is (not secure)
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; print('ready', flush=True); time.sleep(30)"],
+            close_fds=False,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            assert child.stdout.readline().strip() == "ready"
+            owner.close() if owner else handle.close()
+            if secure:
+                with h5py.File(file) as reopened:
+                    assert reopened["x"][0] == 1
+            else:
+                with pytest.raises(BlockingIOError):
+                    h5py.File(file)
+        finally:
+            child.terminate()
+            child.wait(timeout=5)
