@@ -78,6 +78,16 @@ def finalize(root, attempt="gap_repair"):
             lines.append(f"|{r['job']}|{r['status']}|{r['strict_internal_passed']}|{r['cross_official_equivalent']}|{fmt(r['warm_core_ms'])}|{fmt(r['warm_closed_loop_ms'])}|")
             if r["error"]:
                 lines += ["", f"该项拒绝原因：`{r['error'].splitlines()[0]}`。原始日志见 gap_repair/jobs。", ""]
+        lines += ["", "### 短测质量（仅2例，不能作为确认结论）", "",
+                  "|版本|PSNR下降 dB|SSIM下降|MAE相对增加|debug门槛|", "|---|---:|---:|---:|---|"]
+        for r in records:
+            q=r.get("quality") or {}
+            loss=q.get("mean_loss")
+            if loss:
+                lines.append(f"|{r['job']}|{loss[0]:.4f}|{loss[1]:.5f}|{loss[2]:.2%}|{q['passed']}|")
+            else:
+                lines.append(f"|{r['job']}|未评估|未评估|未评估|未判定|")
+        lines += ["", "负数表示对应指标改善。这些debug病例只用于定位，不参加确认集筛选，也不能用两例结果宣称总体质量等价。"]
         lines += ["", "## 训练与断点恢复", "",
                   "|负载|eager 200步完整进程秒|graph 200步完整进程秒|两模式各自续训逐位一致|graph/eager 容差等价|当前建议|", "|---|---:|---:|---|---|---|"]
         for work, v in training.items():
