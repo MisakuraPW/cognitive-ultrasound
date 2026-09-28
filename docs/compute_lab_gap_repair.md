@@ -34,3 +34,21 @@ python .cache/export_compute_lab_gap_audit.py --output /root/autodl-tmp/outputs_
 8组“同执行模式”的连续/恢复比较均逐位一致，包括保存的梯度、参数、优化器状态、适用的EMA以及损失轨迹。codec/prior/filter的 graph/eager 比较通过容差标准；CASL未通过，保留 eager 参照。不能将CASL的这个负结果当成故障重跑至通过，也不能用200步证明完整训练收敛等价。
 
 基础结果包保留被否定的候选、历史结果和质量门槛，修复附录只追加事实，不代填用户预测、Prediction Lock或核心研究判断。
+
+## 最终完成回执（2026-09-28）
+
+用户重新开机后只恢复了四项原SHORT任务，耗时分别131.15、129.15、85.10、85.10秒，全部执行完成。数值不等价仍保留：四项均未通过严格 compiled/eager 等价检查，但通过有限性、重复稳定性及图捕获检查，且完成了各2例×4帧的速度和质量诊断。没有重跑五组确认、训练或增加其他预算。
+
+50步FP16/BF16热核心约157ms；25步FP16/BF16约79–80ms。这些是debug短测，不能充当32病例完整确认，也没有证明应替换现有JAX路线。50步FP16在2例debug的SSIM门槛未通过；其余三项通过debug质量门槛，仍不作总体等价结论。
+
+最终 `compute_lab_v5.final_export.json`：`status=completed`、`experiments_terminal=true`、`bundles_verified=true`、`failed_after_retry=[]`。原批次 `finished_with_gaps` 留作历史证据；以新回执判断本轮收尾状态。已检查没有活动实验工作器，GPU显存0MiB，可以关机。
+
+服务器目录 `/root/autodl-tmp/outputs_casl/`：
+
+|用途|文件|字节|SHA-256|
+|---|---|---:|---|
+|日常阅读，推荐手动下载|`compute_lab_v5.analysis.tar.gz`|390929|`bbb5445ab1231a1aecd90ed0440559c580789d792960f44d637a2fafd7e562a3`|
+|修复追加证据|`compute_lab_v5.gap_repair_classification.tar.gz`|3008389|`a5c5be2a967775883a594dd420ee2bd70af528e0482fba9f15b71794781963d0`|
+|旧完整包，已下载到本地，不必重下|`compute_lab_v5.results.tar.gz`|1167042496|`d7013c044c9a14a2dd0cb5e34475a892a9994ee350290fce49c5f8023359265e`|
+
+每个归档的同名 `.sha256` 文件已生成。轻量包先读 `FINAL_REPORT.md`。本轮计算基座准备已收尾，不因负结果继续增加搜索。
