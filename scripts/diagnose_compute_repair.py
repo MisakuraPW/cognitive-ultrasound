@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 
 import h5py
-import numpy as np
 import torch
 
 from cognitive_ultrasound.torch_casl.native import CapturedFrame, FrozenGraph, NativeCASL, nchw
@@ -15,12 +14,15 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--root', required=True)
     p.add_argument('--output', required=True)
+    p.add_argument('--deterministic', action='store_true')
     args = p.parse_args()
     root, out = Path(args.root), Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.set_float32_matmul_precision('highest')
+    if args.deterministic:
+        torch.use_deterministic_algorithms(True)
     model = NativeCASL(FrozenGraph(root / 'export').to('cuda')).to('cuda')
     model.step_fn = torch.compile(model.dps_step, fullgraph=True)
     model.select = torch.compile(model.select, fullgraph=True)
@@ -34,6 +36,8 @@ def main():
     probe_file = out / 'lock_probe.h5'
     handle = h5py.File(probe_file, 'w')
     handle['x'] = [1]
+    fd = handle.id.get_vfd_handle()
+    print(json.dumps(dict(hdf5_fd=fd, inheritable=os.get_inheritable(fd))), flush=True)
     model.frame(*tensors, steps=50)
     handle.close()
     holders = []
@@ -61,7 +65,7 @@ def main():
             diffs = [float((a.float()-b.float()).abs().max()) for a,b in zip(actual,expected)]
             results['graphs'].append(dict(steps=steps, factor=factor, max_abs=diffs))
             print(json.dumps(results['graphs'][-1]), flush=True)
-        for deterministic in (False, True):
+        for deterministic in (args.deterministic,):
             torch.backends.cudnn.deterministic = deterministic
             expected = model.frame(*tensors, steps=steps)
             repeats = []
