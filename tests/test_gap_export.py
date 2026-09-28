@@ -39,6 +39,10 @@ def test_addendum_preserves_failures_and_does_not_adopt(tmp_path,monkeypatch,out
     assert final['failed_after_retry']==([] if outcome=='completed' else [old.parent.name])
     assert final['status']==('completed' if outcome=='completed' else 'completed_with_rejected_candidates')
     assert read_json(repair/'repair_matrix.json')[0]['cross_official_equivalent'] is False
+    assert (root/'analysis_delivery/FINAL_REPORT.md').exists()
+    assert not list((root/'analysis_delivery').rglob('*.npz'))
+    assert not list((root/'analysis_delivery').rglob('*.tar.gz'))
+    assert 'analysis' in final
 
 
 def test_running_cannot_be_exported_as_finished(tmp_path):

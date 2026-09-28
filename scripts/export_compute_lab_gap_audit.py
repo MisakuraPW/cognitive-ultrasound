@@ -1,6 +1,7 @@
 """Export an append-only repair addendum; retain the verified original result bundle."""
 import argparse
 import csv
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -96,10 +97,30 @@ def finalize(root):
         atomic_json(repair / "base_bundle_reference.json",dict(name=base_path.name,sha256=base["sha256"],size=base_path.stat().st_size))
         receipt=archive(repair,root.with_name(root.name+".gap_repair.tar.gz"),exclude_cache=True)
         atomic_json(root.with_name(root.name+".gap_repair.bundle.json"),receipt)
+        # Small default deliverable: no model/optimizer snapshots, frame arrays,
+        # raw profiler traces, nested archives or duplicated per-frame JSON.
+        analysis=root/"analysis_delivery"
+        analysis.mkdir(exist_ok=True)
+        for name in ("FINAL_REPORT.md","repair_matrix.json","training_summary.json","excel_facts_append.csv","plan.json","base_bundle_reference.json"):
+            shutil.copy2(repair/name,analysis/name)
+        for name in ("ACCELERATION_SUMMARY.md","REPORT.md","excel_facts.csv","scope_amendment.json","selection.json","config.json","closure_completion.json","torch_root_cause_report.md","figure_provenance.json"):
+            source=root/name
+            if source.exists():shutil.copy2(source,analysis/name)
+        for source in root.glob("tradeoff_*"):
+            if source.suffix in (".png",".pdf"):shutil.copy2(source,analysis/source.name)
+        matrix=root/"matrix.json"
+        if matrix.exists():
+            fields=("path","status","profile","cohort","budget","verdict","quality","equivalence_passed","bitwise","summary","timing_distributions","vram_peak_bytes","process_ram_peak_bytes")
+            atomic_json(analysis/"version_summary.json",[{k:r[k] for k in fields if k in r} for r in read_json(matrix)])
+        (analysis/"README.md").write_text("# 轻量分析包\n\n先读 FINAL_REPORT.md。本包包含结论、病例聚合质量、速度、图表和事实CSV；不含模型快照、逐帧数组、原始trace或完整历史归档。完整证据与修复附录的SHA-256见delivery_manifest.json。\n",encoding="utf-8")
+        atomic_json(analysis/"delivery_manifest.json",dict(base=dict(name=base_path.name,sha256=base["sha256"]),addendum=dict(name=Path(receipt["path"]).name,sha256=receipt["sha256"])))
+        light=archive(analysis,root.with_name(root.name+".analysis.tar.gz"))
+        atomic_json(root.with_name(root.name+".analysis.bundle.json"),light)
         final=dict(status="completed" if all(r["status"]=="completed" for r in records) else "completed_with_rejected_candidates",
                    experiments_terminal=True,bundles_verified=True,automatic_adoption=False,
                    original_status_retained=True,base=dict(path=str(base_path),sha256=base["sha256"]),
                    addendum=dict(path=receipt["path"],sha256=receipt["sha256"]),
+                   analysis=dict(path=light["path"],sha256=light["sha256"]),
                    failed_after_retry=[r["job"] for r in records if r["status"]!="completed"],
                    scientific_non_equivalence=["CASL graph training vs eager; retain eager reference"])
         atomic_json(root.with_name(root.name+".final_export.json"),final)
