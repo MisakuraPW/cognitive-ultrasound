@@ -26,7 +26,11 @@ def test_cost_screen_and_no_eager_fallback():
     official = record("official", 1)
     assert not cost_decision(record("torch_eager", 12), official)["proceed"]
     assert fastest_torch([official, record("torch_eager", 0.1, internal_correctness=True)]) is None
-    assert fastest_torch([official, record("torch_compile", 2, internal_correctness=True)]) is None
+    assert (
+        fastest_torch([official, record("torch_compile", 2, internal_correctness=True)])
+        == "compile"
+    )
+    assert fastest_torch([official, record("torch_compile", 5, internal_correctness=True)]) is None
     assert fastest_torch([official, record("torch_graph", 0.1, internal_correctness=False)]) is None
     assert (
         fastest_torch([official, record("torch_graph", 0.1, internal_correctness=True)]) == "graph"

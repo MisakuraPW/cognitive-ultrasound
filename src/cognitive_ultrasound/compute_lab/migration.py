@@ -12,6 +12,7 @@ from ..preparation.suite import run_lock
 from ..provenance import sha256
 
 BASE = "24aad69"
+REVIEWED_BASES = (BASE, "96b2724")
 # Changes outside this reviewed repair scope cannot reuse v2 evidence.
 ALLOWED = {
     "src/cognitive_ultrasound/compute_lab/suite.py",
@@ -45,9 +46,24 @@ def validate_source(old):
     changed = {p for p in set(old) | set(current) if old.get(p) != current.get(p)}
     if changed - ALLOWED:
         raise ValueError(f"Unreviewed implementation changes: {sorted(changed - ALLOWED)}")
-    for p, digest in old.items():
-        if hashlib.sha256(git_bytes(p)).hexdigest() != digest:
-            raise ValueError(f"Source is not the reviewed {BASE} batch: {p}")
+    matched = False
+    for base in REVIEWED_BASES:
+        try:
+            if all(
+                hashlib.sha256(
+                    subprocess.check_output(
+                        ["git", "show", f"{base}:{p}"], cwd=ROOT, stderr=subprocess.DEVNULL
+                    )
+                ).hexdigest()
+                == digest
+                for p, digest in old.items()
+            ):
+                matched = True
+                break
+        except subprocess.CalledProcessError:
+            continue
+    if not matched:
+        raise ValueError("Source does not match a reviewed repair checkpoint")
     for p, name in [
         ("src/cognitive_ultrasound/compute_lab/engines.py", "JaxEngine"),
         ("src/cognitive_ultrasound/torch_casl/native.py", "NativeCASL"),
@@ -117,6 +133,14 @@ def inherit(source, root, cfg, environment):
         if read_json(source / "config.json") != cfg or identity["environment"] != environment:
             raise ValueError("Scientific config or environment incompatible; no inheritance")
         changed = validate_source(identity["source"])
+        now = source_identity()
+        torch_dependencies = [
+            "src/cognitive_ultrasound/compute_lab/engines.py",
+            "src/cognitive_ultrasound/compute_lab/inference.py",
+            "src/cognitive_ultrasound/compute_lab/data.py",
+            "src/cognitive_ultrasound/torch_casl/native.py",
+        ]
+        torch_compatible = all(identity["source"].get(p) == now.get(p) for p in torch_dependencies)
         records = {}
 
         def copy(file):
@@ -137,6 +161,7 @@ def inherit(source, root, cfg, environment):
                 value.get("profile", {}).get("backend") == "jax"
                 or name == "export"
                 or name in ("short_torch_eager_b14", "development_torch_eager_b14")
+                or (torch_compatible and value.get("profile", {}).get("backend") == "torch")
             )
             if value["status"] == "completed" and eligible:
                 for file in f.parent.rglob("*"):
@@ -165,8 +190,12 @@ def inherit(source, root, cfg, environment):
         # Failed Torch jobs remain historical evidence; they are NOT terminal jobs in new batch.
         evidence = root / "inherited_evidence"
         evidence.mkdir(exist_ok=True)
-        for name in ("identity.json", "status.json", "config.json"):
+        for name in ("identity.json", "status.json", "config.json", "inheritance.json"):
+            if not (source / name).exists():
+                continue
             shutil.copy2(source / name, evidence / name)
+        if (source / "inherited_evidence").exists():
+            shutil.copytree(source / "inherited_evidence", evidence / "prior_batch_evidence")
         for name in ("short_torch_compile_b14", "short_torch_graph_b14"):
             if (source / "jobs" / name).exists():
                 shutil.copytree(source / "jobs" / name, evidence / name)
@@ -175,7 +204,8 @@ def inherit(source, root, cfg, environment):
             dict(
                 source=str(source),
                 source_identity_sha256=sha256(source / "identity.json"),
-                reviewed_base=BASE,
+                reviewed_bases=REVIEWED_BASES,
+                torch_implementation_unchanged=torch_compatible,
                 changed_paths=changed,
                 jobs=jobs,
                 files=records,

@@ -49,7 +49,7 @@ def record_decision(root, name, value):
 
 
 def fastest_torch(records):
-    """Never extend eager or a mode slower than the measured official DEV rollout."""
+    """Finite approximation SHORT tests may use a valid mode within the cost bound."""
     official = next(x for x in records if x["profile"]["name"] == "official")
     eligible = [
         x
@@ -58,6 +58,6 @@ def fastest_torch(records):
         and x["profile"]["mode"] in ("compile", "graph")
         and x.get("status") == "completed"
         and x.get("internal_correctness", False)
-        and x["closed_loop_s"] < official["closed_loop_s"]
+        and x["closed_loop_s"] <= 4 * official["closed_loop_s"]
     ]
     return min(eligible, key=lambda x: x["closed_loop_s"])["profile"]["mode"] if eligible else None

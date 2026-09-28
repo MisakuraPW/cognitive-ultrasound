@@ -306,7 +306,11 @@ class Suite:
 
     def worthwhile(self, profile, short):
         reference = read_json(self.root / "jobs/short_official_b14/result.json")
-        decision = cost_decision(short, reference)
+        decision = cost_decision(
+            short,
+            reference,
+            limit=1.0 if profile.backend == "torch" and profile.category == "B" else 4.0,
+        )
         record_decision(self.root, profile.name, decision)
         # Never recompute a compatible completed job just because the new cost gate differs.
         complete = self.root / "jobs" / f"development_{profile.name}_b14/result.json"
@@ -488,9 +492,13 @@ class Suite:
             raise BoundaryPause()
         # Repair validation always precedes extension. Eager is retained historical evidence,
         # never the implicit fallback for four expensive approximation DEV jobs.
+        torch_short = {
+            mode: self.inference(candidates["torch_" + mode], "debug", 14, True)
+            for mode in ("compile", "graph")
+        }
         for mode in ("compile", "graph"):
             p = candidates["torch_" + mode]
-            record = self.inference(p, "debug", 14, True)
+            record = torch_short[mode]
             internal = record.get("operator_checks", {}).get("internal_correctness", False)
             if record["status"] == "completed" and internal and self.worthwhile(p, record):
                 value = self.inference(p, "development", 14)
@@ -516,7 +524,7 @@ class Suite:
                 proceed=fastest is not None,
                 mode=fastest,
                 kind="cost_eligible" if fastest else "performance_or_correctness_no_eligible_mode",
-                reason="Only repaired compile/graph faster than official DEV; no eager fallback",
+                reason="Only repaired compile/graph within 4x official DEV may enter fixed approximation SHORT tests; approximation DEV requires faster-than-official short timing; no eager fallback",
             ),
         )
         self.save(stage="torch_boundary")
