@@ -1,0 +1,1921 @@
+{
+  "date": "2026-09-29",
+  "provenance": "Post-hoc report of existing results; no new GPU experiments.",
+  "sources": {
+    "results/compute_lab_v5_final/original/matrix.json": "c049cc7befdd8b400820331340ab30642dcc3247c90dd85c1122615406c68592",
+    "results/compute_lab_v5_final/original/training_report.json": "e0ac84c9a8759d479875fcad8ccceec318879e8af4d30f77d279cfa66e1a01a1",
+    "results/compute_lab_v5_final/original/throughput.json": "74f06a43c1e3998e7cb7051bb2d149a252700d1050d7eb6cea73dddaccb27927",
+    "results/compute_lab_v5_final/original/capacity.json": "b319673adca314855f54c0e066048e296c3166ddacf80aa9996f9a9701874aed",
+    "results/compute_lab_v5_final/original/closure_completion.json": "830f89b4248dc2a17491901bd32f4cec057e517360fc4765df026a1d868a446c",
+    "results/compute_lab_v5_final/original/torch_root_cause_report.md": "81f07bbc06387caa023f5afa53018818da085f263ee68714094b2516ddedcd66",
+    "results/compute_lab_v5_final/repair_matrix.json": "053739df988d516d62cdef30a1331a9f0f82e0aacabf6d22e9697e875f6303bb",
+    "results/compute_lab_v5_final/final_export.json": "02bbed5c0b4635ff9c2ef404b40343799bf94f8e0d86d0ce472ce9177f5b5d7c"
+  },
+  "quality_sign": "PSNR/SSIM drop and relative MAE increase; negative is improvement.",
+  "metric_aggregation": "Equal cases after equal seeds after frames; action_changed_frame_count is descriptive frame count, not fraction of individual scan lines changed.",
+  "inference": [
+    {
+      "profile": {
+        "name": "jax_25_bf16",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "bf16",
+        "steps": 25,
+        "dps": 25,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "combination",
+        "cold_steps": 500,
+        "cold_precision": "bf16",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "confirmation",
+      "budget": 7,
+      "frame_seed_observations": 17367,
+      "cases": 32,
+      "seeds": [
+        42,
+        31415,
+        271828
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.13097640472423255,
+          -0.0046125734190779755,
+          -0.012993200417514356
+        ],
+        "upper95": [
+          -0.08347171251987258,
+          -0.003094920313407643,
+          -0.008331425948842699
+        ],
+        "worst_loss": [
+          0.36495505357793334,
+          0.007357008413767074,
+          0.035576654103615546
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.03224545533111349,
+          "p50": 0.03168133273720741,
+          "p95": 0.03647869192063808
+        },
+        "closed_loop_s": {
+          "mean": 0.03799136709871945,
+          "p50": 0.03738148882985115,
+          "p95": 0.0424529992043972
+        },
+        "io_s": {
+          "mean": 0.009719484249533871,
+          "p50": 0.008778207004070282,
+          "p95": 0.018779832869768143
+        },
+        "output_enqueue_s": {
+          "mean": 0.022811454897841338,
+          "p50": 0.02278023213148117,
+          "p95": 0.026177425310015677
+        }
+      },
+      "process_wall_s": 1590.3443828821182,
+      "action_changed_frame_count": 17366,
+      "actual_lines": [
+        7
+      ],
+      "case_equal_metrics": {
+        "psnr": 23.68724633263143,
+        "ssim": 0.7064206105449264,
+        "mae": 0.07824560555764197,
+        "temporal_error": 0.07518961302313772,
+        "common_unobserved_mae": 0.08324635357137679,
+        "reference_common_unobserved_mae": 0.0842476794458844
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_25_fp32",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 25,
+        "dps": 25,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "sampling",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "confirmation",
+      "budget": 7,
+      "frame_seed_observations": 17367,
+      "cases": 32,
+      "seeds": [
+        42,
+        31415,
+        271828
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.17208294543288916,
+          -0.006850040714918269,
+          -0.01988827083615973
+        ],
+        "upper95": [
+          -0.12522029898097575,
+          -0.005364612399325303,
+          -0.015447809325488577
+        ],
+        "worst_loss": [
+          0.37275340699493853,
+          0.006742701054138878,
+          0.03308429814817915
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.03971303004711823,
+          "p50": 0.039523761719465256,
+          "p95": 0.04029203578829765
+        },
+        "closed_loop_s": {
+          "mean": 0.04552475827598329,
+          "p50": 0.04517978057265282,
+          "p95": 0.04742069132626057
+        },
+        "io_s": {
+          "mean": 0.009710419999199664,
+          "p50": 0.008777733892202377,
+          "p95": 0.0187456090003252
+        },
+        "output_enqueue_s": {
+          "mean": 0.022759554360110686,
+          "p50": 0.022670894861221313,
+          "p95": 0.026311225444078445
+        }
+      },
+      "process_wall_s": 1735.5716012120247,
+      "action_changed_frame_count": 17238,
+      "actual_lines": [
+        7
+      ],
+      "case_equal_metrics": {
+        "psnr": 23.72835287334009,
+        "ssim": 0.7086580778407667,
+        "mae": 0.0777274508424482,
+        "temporal_error": 0.07503418686343762,
+        "common_unobserved_mae": 0.08267974444025837,
+        "reference_common_unobserved_mae": 0.08423906972046417
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_50_fp16",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp16",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "precision",
+        "cold_steps": 500,
+        "cold_precision": "fp16",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "confirmation",
+      "budget": 7,
+      "frame_seed_observations": 17367,
+      "cases": 32,
+      "seeds": [
+        42,
+        31415,
+        271828
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.00987498481673843,
+          -0.00015656296644589104,
+          -0.001381632655233847
+        ],
+        "upper95": [
+          0.0031266762957861704,
+          0.00028137055798779326,
+          -0.00024423469696184454
+        ],
+        "worst_loss": [
+          0.08851957396255017,
+          0.0045831731222831795,
+          0.006863983826988385
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.06340175194489557,
+          "p50": 0.062321968376636505,
+          "p95": 0.06827163808047772
+        },
+        "closed_loop_s": {
+          "mean": 0.06966321604827953,
+          "p50": 0.0684863030910492,
+          "p95": 0.0746504995971918
+        },
+        "io_s": {
+          "mean": 0.01010449319275359,
+          "p50": 0.009136330336332321,
+          "p95": 0.019268751516938208
+        },
+        "output_enqueue_s": {
+          "mean": 0.023993526099810956,
+          "p50": 0.023847751319408417,
+          "p95": 0.027738392725586883
+        }
+      },
+      "process_wall_s": 2182.9803631044924,
+      "action_changed_frame_count": 17362,
+      "actual_lines": [
+        7
+      ],
+      "case_equal_metrics": {
+        "psnr": 23.566144912723935,
+        "ssim": 0.7019646000922943,
+        "mae": 0.07909162475222162,
+        "temporal_error": 0.0790594536878911,
+        "common_unobserved_mae": 0.08412056298291146,
+        "reference_common_unobserved_mae": 0.0842413706834443
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_constants",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": true,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "confirmation",
+      "budget": 7,
+      "frame_seed_observations": 17367,
+      "cases": 32,
+      "seeds": [
+        42,
+        31415,
+        271828
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07921128777806068,
+          "p50": 0.0789184607565403,
+          "p95": 0.07973887957632542
+        },
+        "closed_loop_s": {
+          "mean": 0.08234102751273428,
+          "p50": 0.08193852379918098,
+          "p95": 0.08383633792400359
+        },
+        "io_s": {
+          "mean": 0.010096115634127302,
+          "p50": 0.009134922176599503,
+          "p95": 0.019256367906928064
+        },
+        "output_enqueue_s": {
+          "mean": 0.02382354754612956,
+          "p50": 0.023708153516054153,
+          "p95": 0.027802283689379693
+        }
+      },
+      "process_wall_s": 2415.773850735277,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        7
+      ],
+      "case_equal_metrics": {
+        "psnr": 23.5562699279072,
+        "ssim": 0.7018080371258485,
+        "mae": 0.0792044208601466,
+        "temporal_error": 0.07914385808017402,
+        "common_unobserved_mae": 0.08448471555507031,
+        "reference_common_unobserved_mae": 0.08448471555507031
+      }
+    },
+    {
+      "profile": {
+        "name": "official",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "confirmation",
+      "budget": 7,
+      "frame_seed_observations": 17367,
+      "cases": 32,
+      "seeds": [
+        42,
+        31415,
+        271828
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07922254068969466,
+          "p50": 0.07894449681043625,
+          "p95": 0.07994365580379963
+        },
+        "closed_loop_s": {
+          "mean": 0.0852023820592066,
+          "p50": 0.0847063921391964,
+          "p95": 0.08821159675717354
+        },
+        "io_s": {
+          "mean": 0.010082802467124084,
+          "p50": 0.009142003953456879,
+          "p95": 0.019263771176338196
+        },
+        "output_enqueue_s": {
+          "mean": 0.023986484370203866,
+          "p50": 0.02378232777118683,
+          "p95": 0.02882723659276961
+        }
+      },
+      "process_wall_s": 2338.9390194416046,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        7
+      ],
+      "case_equal_metrics": {
+        "psnr": 23.5562699279072,
+        "ssim": 0.7018080371258485,
+        "mae": 0.0792044208601466,
+        "temporal_error": 0.07914385808017402,
+        "common_unobserved_mae": 0.08448471555507031,
+        "reference_common_unobserved_mae": 0.08448471555507031
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_25_bf16",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "bf16",
+        "steps": 25,
+        "dps": 25,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "combination",
+        "cold_steps": 500,
+        "cold_precision": "bf16",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.1397055359788939,
+          -0.001626867363522591,
+          -0.010715834000050592
+        ],
+        "upper95": null,
+        "worst_loss": [
+          -0.012204897335436726,
+          0.0043513522697840035,
+          0.003948055710491394
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.032244675145280434,
+          "p50": 0.03176763840019703,
+          "p95": 0.03526593111455441
+        },
+        "closed_loop_s": {
+          "mean": 0.03846280310169397,
+          "p50": 0.037884559482336044,
+          "p95": 0.04171143956482411
+        },
+        "io_s": {
+          "mean": 0.008143997793846515,
+          "p50": 0.00770232081413269,
+          "p95": 0.010584592260420321
+        },
+        "output_enqueue_s": {
+          "mean": 0.023989122355379075,
+          "p50": 0.023479299619793892,
+          "p95": 0.027404232323169707
+        }
+      },
+      "process_wall_s": 226.76419839262962,
+      "action_changed_frame_count": 2040,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.73466095246637,
+        "ssim": 0.7876090112640237,
+        "mae": 0.05944586067116395,
+        "temporal_error": 0.0720547907800478,
+        "common_unobserved_mae": 0.06747085959725682,
+        "reference_common_unobserved_mae": 0.06821559323361726
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_25_fp16",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp16",
+        "steps": 25,
+        "dps": 25,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "combination",
+        "cold_steps": 500,
+        "cold_precision": "fp16",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.23595676887159067,
+          -0.005286789463989874,
+          -0.023886290541224098
+        ],
+        "upper95": null,
+        "worst_loss": [
+          -0.13221149964148182,
+          -0.0014178458571800778,
+          -0.015744114981145807
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.03223208409819411,
+          "p50": 0.03185509517788887,
+          "p95": 0.034888391941785814
+        },
+        "closed_loop_s": {
+          "mean": 0.038605792499870895,
+          "p50": 0.038127679377794266,
+          "p95": 0.04146248158067464
+        },
+        "io_s": {
+          "mean": 0.008132212953011234,
+          "p50": 0.007703777402639389,
+          "p95": 0.010594786331057548
+        },
+        "output_enqueue_s": {
+          "mean": 0.024065633666185863,
+          "p50": 0.023913562297821045,
+          "p95": 0.026943993382155893
+        }
+      },
+      "process_wall_s": 227.2991302497685,
+      "action_changed_frame_count": 2040,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.830912185359065,
+        "ssim": 0.7912689333644909,
+        "mae": 0.05868134636717338,
+        "temporal_error": 0.07151970346509828,
+        "common_unobserved_mae": 0.06663502030002541,
+        "reference_common_unobserved_mae": 0.06818555974584137
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_25_fp32",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 25,
+        "dps": 25,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "sampling",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.24090368642526316,
+          -0.0053201655345269105,
+          -0.023969261270329223
+        ],
+        "upper95": null,
+        "worst_loss": [
+          -0.10599461059150173,
+          -0.00123688462206617,
+          -0.011238168732645604
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.03969261422753334,
+          "p50": 0.039539920166134834,
+          "p95": 0.03979442566633225
+        },
+        "closed_loop_s": {
+          "mean": 0.046089640746182534,
+          "p50": 0.04580884985625744,
+          "p95": 0.047393792867660524
+        },
+        "io_s": {
+          "mean": 0.008138837849357688,
+          "p50": 0.007694181054830551,
+          "p95": 0.01060095988214016
+        },
+        "output_enqueue_s": {
+          "mean": 0.024200820892796928,
+          "p50": 0.02391175925731659,
+          "p95": 0.027488418668508527
+        }
+      },
+      "process_wall_s": 242.38593509793282,
+      "action_changed_frame_count": 2023,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.83585910291274,
+        "ssim": 0.791302309435028,
+        "mae": 0.05868310073463128,
+        "temporal_error": 0.07156256466204472,
+        "common_unobserved_mae": 0.06662677811395805,
+        "reference_common_unobserved_mae": 0.0681618512873918
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_50_bf16",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "bf16",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "precision",
+        "cold_steps": 500,
+        "cold_precision": "bf16",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "failed",
+      "quality": {
+        "passed": false,
+        "mean_loss": [
+          0.06879588068385578,
+          0.002547591975218283,
+          0.010164586637279538
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.11381150323611067,
+          0.004275823780442889,
+          0.01665221780183801
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.06275526226212481,
+          "p50": 0.062173930928111076,
+          "p95": 0.06630178187042475
+        },
+        "closed_loop_s": {
+          "mean": 0.0690774831538686,
+          "p50": 0.0684284158051014,
+          "p95": 0.07285030633211136
+        },
+        "io_s": {
+          "mean": 0.00815389128364771,
+          "p50": 0.007711129263043404,
+          "p95": 0.010592097230255604
+        },
+        "output_enqueue_s": {
+          "mean": 0.023984454178893232,
+          "p50": 0.02347942255437374,
+          "p95": 0.0271350285038352
+        }
+      },
+      "process_wall_s": 288.82037742063403,
+      "action_changed_frame_count": 2039,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.526159535803618,
+        "ssim": 0.7834345519252828,
+        "mae": 0.060676928512675074,
+        "temporal_error": 0.07459147462562188,
+        "common_unobserved_mae": 0.0688176597307193,
+        "reference_common_unobserved_mae": 0.06818802256918477
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_50_fp16",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp16",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "precision",
+        "cold_steps": 500,
+        "cold_precision": "fp16",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.010914345589108088,
+          -0.00029695305789242954,
+          -0.0010888128121850499
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.02913556486238278,
+          0.0005757947664835061,
+          0.0028991122670491976
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.06344683680022914,
+          "p50": 0.06303980946540833,
+          "p95": 0.06690076552331448
+        },
+        "closed_loop_s": {
+          "mean": 0.06970069715307944,
+          "p50": 0.06919845566153526,
+          "p95": 0.07326311990618706
+        },
+        "io_s": {
+          "mean": 0.008148194123727392,
+          "p50": 0.007715819403529167,
+          "p95": 0.010638390108942986
+        },
+        "output_enqueue_s": {
+          "mean": 0.024120435896014192,
+          "p50": 0.023913130164146423,
+          "p95": 0.026839932985603807
+        }
+      },
+      "process_wall_s": 290.21898260712624,
+      "action_changed_frame_count": 2040,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.60586976207658,
+        "ssim": 0.7862790969583935,
+        "mae": 0.060017484982792316,
+        "temporal_error": 0.07418811744395934,
+        "common_unobserved_mae": 0.0681263166434585,
+        "reference_common_unobserved_mae": 0.06819260046664098
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_async_output",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": true,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07938581550553203,
+          "p50": 0.07910126447677612,
+          "p95": 0.0801528874784708
+        },
+        "closed_loop_s": {
+          "mean": 0.0863053250252696,
+          "p50": 0.08594042435288429,
+          "p95": 0.08899375014007091
+        },
+        "io_s": {
+          "mean": 0.013103824388977897,
+          "p50": 0.012738971039652824,
+          "p95": 0.016044314019382
+        },
+        "output_enqueue_s": {
+          "mean": 0.0005324706008501975,
+          "p50": 0.00029435567557811737,
+          "p95": 0.0003849074244499204
+        }
+      },
+      "process_wall_s": 292.2880994230509,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.594955416487473,
+        "ssim": 0.7859821439005011,
+        "mae": 0.06008927074558855,
+        "temporal_error": 0.07426806042079,
+        "common_unobserved_mae": 0.06867345229312055,
+        "reference_common_unobserved_mae": 0.06867345229312055
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_combined",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "prefetch",
+        "constants": true,
+        "transfers": true,
+        "async_output": true,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07983993934801376,
+          "p50": 0.0794011689722538,
+          "p95": 0.08114300817251205
+        },
+        "closed_loop_s": {
+          "mean": 0.08398999992861929,
+          "p50": 0.08359627611935139,
+          "p95": 0.08561209533363581
+        },
+        "io_s": {
+          "mean": 2.8150300847819126e-05,
+          "p50": 2.612173557281494e-05,
+          "p95": 4.285145550966262e-05
+        },
+        "output_enqueue_s": {
+          "mean": 0.0005083113585958681,
+          "p50": 0.0003046095371246338,
+          "p95": 0.0004038942977786064
+        }
+      },
+      "process_wall_s": 265.17144523561,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.594955416487473,
+        "ssim": 0.7859821439005011,
+        "mae": 0.06008927074558855,
+        "temporal_error": 0.07426806042079,
+        "common_unobserved_mae": 0.06867345229312055,
+        "reference_common_unobserved_mae": 0.06867345229312055
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_constants",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": true,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07900409567618809,
+          "p50": 0.07886994257569313,
+          "p95": 0.07910270914435387
+        },
+        "closed_loop_s": {
+          "mean": 0.08217633645276565,
+          "p50": 0.08196940459311008,
+          "p95": 0.08286115676164627
+        },
+        "io_s": {
+          "mean": 0.008167603817504953,
+          "p50": 0.007731186226010323,
+          "p95": 0.010648648254573345
+        },
+        "output_enqueue_s": {
+          "mean": 0.02415218485511869,
+          "p50": 0.02381720393896103,
+          "p95": 0.027445003762841223
+        }
+      },
+      "process_wall_s": 314.9967353567481,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.594955416487473,
+        "ssim": 0.7859821439005011,
+        "mae": 0.06008927074558855,
+        "temporal_error": 0.07426806042079,
+        "common_unobserved_mae": 0.06867345229312055,
+        "reference_common_unobserved_mae": 0.06867345229312055
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_dps10",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 10,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "sampling",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "failed",
+      "quality": {
+        "passed": false,
+        "mean_loss": [
+          -0.35996836841598157,
+          0.013568289909016845,
+          -0.005782952519786111
+        ],
+        "upper95": null,
+        "worst_loss": [
+          -0.19324928405082176,
+          0.017950983048133473,
+          0.01847588176889725
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.05041625401732397,
+          "p50": 0.04988214373588562,
+          "p95": 0.05327322892844676
+        },
+        "closed_loop_s": {
+          "mean": 0.05679306851150802,
+          "p50": 0.056181082502007484,
+          "p95": 0.060051006637513636
+        },
+        "io_s": {
+          "mean": 0.008128539121067856,
+          "p50": 0.007685232907533646,
+          "p95": 0.010597457736730575
+        },
+        "output_enqueue_s": {
+          "mean": 0.024300500047411695,
+          "p50": 0.02408130094408989,
+          "p95": 0.027561576105654226
+        }
+      },
+      "process_wall_s": 265.16269302740693,
+      "action_changed_frame_count": 2024,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.954923784903457,
+        "ssim": 0.7724138539914842,
+        "mae": 0.0597470711515686,
+        "temporal_error": 0.07008211125613031,
+        "common_unobserved_mae": 0.0678348626566848,
+        "reference_common_unobserved_mae": 0.06817174047518487
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_dps5",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 5,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "B",
+        "family": "sampling",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "failed",
+      "quality": {
+        "passed": false,
+        "mean_loss": [
+          0.5221664648188229,
+          0.060375502900579955,
+          0.119177151521346
+        ],
+        "upper95": null,
+        "worst_loss": [
+          1.0462948742554659,
+          0.0798696039461173,
+          0.18855715101007475
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.04660396982333159,
+          "p50": 0.04625194892287254,
+          "p95": 0.04875896405428648
+        },
+        "closed_loop_s": {
+          "mean": 0.05298541777719005,
+          "p50": 0.05254008620977402,
+          "p95": 0.05549796465784311
+        },
+        "io_s": {
+          "mean": 0.008163035964125775,
+          "p50": 0.007725486531853676,
+          "p95": 0.010633119195699692
+        },
+        "output_enqueue_s": {
+          "mean": 0.02418984052357802,
+          "p50": 0.024061448872089386,
+          "p95": 0.02710344884544611
+        }
+      },
+      "process_wall_s": 259.58490532264113,
+      "action_changed_frame_count": 2024,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.072788951668652,
+        "ssim": 0.7256066409999211,
+        "mae": 0.06741120549756283,
+        "temporal_error": 0.0721475459068958,
+        "common_unobserved_mae": 0.07654257744780485,
+        "reference_common_unobserved_mae": 0.06808363364618872
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_prefetch",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "prefetch",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07932811199067777,
+          "p50": 0.07914239726960659,
+          "p95": 0.07938697468489408
+        },
+        "closed_loop_s": {
+          "mean": 0.0863881397665853,
+          "p50": 0.08604984730482101,
+          "p95": 0.08768010567873716
+        },
+        "io_s": {
+          "mean": 4.5829040714469086e-05,
+          "p50": 4.544109106063843e-05,
+          "p95": 5.351938307285308e-05
+        },
+        "output_enqueue_s": {
+          "mean": 0.024240581491271933,
+          "p50": 0.02407681941986084,
+          "p95": 0.02741186041384935
+        }
+      },
+      "process_wall_s": 309.89059103280306,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.594955416487473,
+        "ssim": 0.7859821439005011,
+        "mae": 0.06008927074558855,
+        "temporal_error": 0.07426806042079,
+        "common_unobserved_mae": 0.06867345229312055,
+        "reference_common_unobserved_mae": 0.06867345229312055
+      }
+    },
+    {
+      "profile": {
+        "name": "jax_transfers",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": true,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07925803013390813,
+          "p50": 0.07896801643073559,
+          "p95": 0.08016954362392424
+        },
+        "closed_loop_s": {
+          "mean": 0.0858325519454313,
+          "p50": 0.08532201126217842,
+          "p95": 0.08858686611056328
+        },
+        "io_s": {
+          "mean": 0.008152562416199431,
+          "p50": 0.007687924429774284,
+          "p95": 0.010679956525564194
+        },
+        "output_enqueue_s": {
+          "mean": 0.024429304803539796,
+          "p50": 0.024112636223435402,
+          "p95": 0.02860491834580898
+        }
+      },
+      "process_wall_s": 323.9049356393516,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.594955416487473,
+        "ssim": 0.7859821439005011,
+        "mae": 0.06008927074558855,
+        "temporal_error": 0.07426806042079,
+        "common_unobserved_mae": 0.06867345229312055,
+        "reference_common_unobserved_mae": 0.06867345229312055
+      }
+    },
+    {
+      "profile": {
+        "name": "official",
+        "backend": "jax",
+        "mode": "official",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "bitwise_same",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.07915951342570532,
+          "p50": 0.07878344692289829,
+          "p95": 0.08018694128841161
+        },
+        "closed_loop_s": {
+          "mean": 0.08547936651699868,
+          "p50": 0.08486007712781429,
+          "p95": 0.088717046380043
+        },
+        "io_s": {
+          "mean": 0.008351296589030806,
+          "p50": 0.007872248068451881,
+          "p95": 0.010829087905585765
+        },
+        "output_enqueue_s": {
+          "mean": 0.02581941119332119,
+          "p50": 0.02505672723054886,
+          "p95": 0.032821938581764694
+        }
+      },
+      "process_wall_s": 314.32032522931695,
+      "action_changed_frame_count": 0,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.594955416487473,
+        "ssim": 0.7859821439005011,
+        "mae": 0.06008927074558855,
+        "temporal_error": 0.07426806042079,
+        "common_unobserved_mae": 0.06867345229312055,
+        "reference_common_unobserved_mae": 0.06867345229312055
+      }
+    },
+    {
+      "profile": {
+        "name": "torch_eager",
+        "backend": "torch",
+        "mode": "eager",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.010656648038525951,
+          -0.0003800551275062042,
+          -0.0010322487294239513
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.031878724845686435,
+          0.0013201561210427482,
+          0.004209869244260922
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 1.7388589929407128,
+          "p50": 1.767864216119051,
+          "p95": 1.819287102110684
+        },
+        "closed_loop_s": {
+          "mean": 1.7405589035103668,
+          "p50": 1.769443353638053,
+          "p95": 1.8209835832938552
+        },
+        "io_s": {
+          "mean": 0.008153457810501178,
+          "p50": 0.007746085524559021,
+          "p95": 0.010650326497852802
+        },
+        "output_enqueue_s": {
+          "mean": 0.022722376911229348,
+          "p50": 0.022333992645144463,
+          "p95": 0.026949421502649767
+        }
+      },
+      "process_wall_s": 3928.3721162490547,
+      "action_changed_frame_count": 2033,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.605612064526,
+        "ssim": 0.7863621990280073,
+        "mae": 0.06002197261600926,
+        "temporal_error": 0.07414599083680055,
+        "common_unobserved_mae": 0.06812148341129115,
+        "reference_common_unobserved_mae": 0.0681798964117573
+      }
+    },
+    {
+      "profile": {
+        "name": "torch_graph",
+        "backend": "torch",
+        "mode": "graph",
+        "precision": "fp32",
+        "steps": 50,
+        "dps": 50,
+        "io": "serial",
+        "constants": false,
+        "transfers": false,
+        "async_output": false,
+        "category": "A",
+        "family": "engineering",
+        "cold_steps": 500,
+        "cold_precision": "fp32",
+        "particles": 2,
+        "window": 3,
+        "tf32": false,
+        "automatic_adoption": false
+      },
+      "cohort": "development",
+      "budget": 14,
+      "frame_seed_observations": 2040,
+      "cases": 8,
+      "seeds": [
+        42,
+        31415
+      ],
+      "verdict": "quality_close_only",
+      "quality": {
+        "passed": true,
+        "mean_loss": [
+          -0.015126236399170434,
+          -0.000607440300554471,
+          -0.0018942703907416647
+        ],
+        "upper95": null,
+        "worst_loss": [
+          0.03547345027025273,
+          0.0004676744853384651,
+          0.002465561924004156
+        ],
+        "columns": [
+          "psnr_drop_db",
+          "ssim_drop",
+          "mae_relative_increase"
+        ],
+        "replication_unit": "patient; seeds and frames aggregated before bootstrap"
+      },
+      "timing": {
+        "core_s": {
+          "mean": 0.20428190930408846,
+          "p50": 0.20450660400092602,
+          "p95": 0.20457193963229656
+        },
+        "closed_loop_s": {
+          "mean": 0.20555907476366872,
+          "p50": 0.20573330484330654,
+          "p95": 0.2059496534988284
+        },
+        "io_s": {
+          "mean": 0.008200671106383976,
+          "p50": 0.007775481790304184,
+          "p95": 0.01070915162563324
+        },
+        "output_enqueue_s": {
+          "mean": 0.021976789633977225,
+          "p50": 0.021924812346696854,
+          "p95": 0.02387474086135626
+        }
+      },
+      "process_wall_s": 677.2076941393316,
+      "action_changed_frame_count": 2038,
+      "actual_lines": [
+        14
+      ],
+      "case_equal_metrics": {
+        "psnr": 25.610081652886645,
+        "ssim": 0.7865895842010555,
+        "mae": 0.05996925673002073,
+        "temporal_error": 0.07410514282337677,
+        "common_unobserved_mae": 0.06804146516122038,
+        "reference_common_unobserved_mae": 0.06816403589530842
+      }
+    }
+  ],
+  "training": {
+    "casl": {
+      "recommended": "eager",
+      "engineering_comparison": {
+        "passed": false,
+        "bitwise": false,
+        "status": "not_equivalent"
+      },
+      "engineering_loss": {
+        "passed": false,
+        "bitwise": false,
+        "max_abs": 0.002308100461959839
+      },
+      "eager": {
+        "elapsed_s": 202.3469635657966,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      },
+      "graph": {
+        "elapsed_s": 118.22267978265882,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      }
+    },
+    "codec": {
+      "recommended": "graph",
+      "engineering_comparison": {
+        "passed": true,
+        "bitwise": false,
+        "status": "tolerance_equivalent"
+      },
+      "engineering_loss": {
+        "passed": true,
+        "bitwise": false,
+        "max_abs": 1.3709068298339844e-06
+      },
+      "eager": {
+        "elapsed_s": 41.28027378022671,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      },
+      "graph": {
+        "elapsed_s": 19.118725892156363,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      }
+    },
+    "prior": {
+      "recommended": "graph",
+      "engineering_comparison": {
+        "passed": true,
+        "bitwise": false,
+        "status": "tolerance_equivalent"
+      },
+      "engineering_loss": {
+        "passed": true,
+        "bitwise": false,
+        "max_abs": 5.960464477539062e-07
+      },
+      "eager": {
+        "elapsed_s": 44.282739117741585,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      },
+      "graph": {
+        "elapsed_s": 18.621602289378643,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      }
+    },
+    "filter": {
+      "recommended": "graph",
+      "engineering_comparison": {
+        "passed": true,
+        "bitwise": false,
+        "status": "tolerance_equivalent"
+      },
+      "engineering_loss": {
+        "passed": true,
+        "bitwise": false,
+        "max_abs": 2.7000904083251953e-05
+      },
+      "eager": {
+        "elapsed_s": 272.767824023962,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      },
+      "graph": {
+        "elapsed_s": 44.79420239850879,
+        "recovery_loss": {
+          "passed": true,
+          "bitwise": true,
+          "max_abs": 0.0
+        },
+        "recovery": {
+          "passed": true,
+          "bitwise": true,
+          "status": "tolerance_equivalent"
+        }
+      }
+    }
+  }
+}
