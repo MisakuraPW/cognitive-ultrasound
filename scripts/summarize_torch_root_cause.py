@@ -41,6 +41,8 @@ def main():
     for p in sorted(args.root.glob("*/result.json")):
         result = json.loads(p.read_text())
         trace = p.parent / "frame_graph.trace.json"
+        if not trace.exists():
+            continue
         records[p.parent.name] = dict(result=result, frame_profile=kernels(trace))
     a = args.root / "bilinear_original/frame_outputs.npz"
     b = args.root / "bilinear_separable/frame_outputs.npz"
@@ -62,6 +64,33 @@ def main():
         variants=records,
         interpolation_comparison=comparison,
     )
+    jax = args.root / "jax_fixed/result.json"
+    if jax.exists():
+        out["jax_fixed"] = json.loads(jax.read_text())
+    out["fixed_frame_comparisons"] = {}
+    for reference in ("bilinear_original", "jax_fixed"):
+        ref = args.root / reference / "frame_outputs.npz"
+        if not ref.exists():
+            continue
+        with np.load(ref) as expected:
+            for name in ("bilinear_original", "bilinear_separable", "separable_contiguous"):
+                target = args.root / name / "frame_outputs.npz"
+                if not target.exists():
+                    continue
+                with np.load(target) as actual:
+                    checks = {}
+                    for key in actual.files:
+                        x, y = actual[key], expected[key]
+                        if x.shape != y.shape:
+                            raise ValueError(f"Output shape mismatch: {name}, {reference}, {key}")
+                        delta = np.abs(x.astype(float) - y.astype(float))
+                        checks[key] = dict(
+                            max_abs=float(delta.max()),
+                            mean_abs=float(delta.mean()),
+                            tolerance_passed=bool(np.allclose(x, y, atol=2e-4, rtol=2e-4)),
+                            exactly_equal=bool(np.array_equal(x, y)),
+                        )
+                    out["fixed_frame_comparisons"][name + "_vs_" + reference] = checks
     (args.root / "summary.json").write_text(json.dumps(out, indent=2))
     for name, record in records.items():
         print(name, record["result"]["timings"]["frame_graph_50"], record["frame_profile"])
