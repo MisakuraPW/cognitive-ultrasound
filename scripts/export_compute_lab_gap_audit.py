@@ -13,8 +13,10 @@ from cognitive_ultrasound.preparation.suite import run_lock
 from cognitive_ultrasound.provenance import sha256
 
 
-def finalize(root):
-    repair = root / "gap_repair"
+def finalize(root, attempt="gap_repair"):
+    if attempt not in ("gap_repair","gap_repair_classification"):
+        raise ValueError("Unknown bounded repair attempt")
+    repair = root / attempt
     with run_lock(root):
         state = read_json(repair / "status.json")
         if state["status"] not in ("completed", "completed_with_rejections"):
@@ -38,6 +40,8 @@ def finalize(root):
             checks = r.get("operator_checks") or {}
             entry = dict(job=name, status=r["status"], error=r.get("error"),
                          strict_internal_passed=bool(checks.get("internal_correctness")),
+                         runtime_integrity=bool(checks.get("runtime_integrity")),
+                         compiled_eager_checks=checks.get("compiled_eager_checks"),
                          cross_official_equivalent=r.get("equivalence_passed", False),
                          compiler_option=r.get("compiler_option"),
                          warm_core_ms=float(np.mean([x["core_s"] for x in warm])*1000) if warm else None,
@@ -65,7 +69,8 @@ def finalize(root):
                  "本附录追加于原始结果；原 status.json 的 finished_with_gaps 和四个失败结果保留为历史记录。",
                  "本轮仅补查并定向重跑四个 Torch 低精度短测。五组7线确认、已完成训练和历史收尾均未重复运行；14/28线确认仍取消。", "",
                  "## 失败原因与修复范围", "",
-                 "旧短测在 Torch compiled/eager 检查处停止，尚未进入完整质量评估。Inductor 默认省略相邻低精度算子的中间舍入；本次显式开启 emulate_precision_casts 保留舍入，其他科学配置与 2e-4 阈值不变。",
+                 "旧短测在 Torch compiled/eager 检查处停止，尚未进入完整质量评估。第一项定位尝试保留低精度中间舍入，但四项仍未通过，因此否定了这一单一修复假设，原记录一并保留。",
+                 "后续修复的是流水线分类：B类的有限浮点差异仍记为2e-4数值不等价，不再等同于程序崩溃。非有限值、形状/类型变化、重复执行不稳定、梯度丢失、图捕获与未捕获执行不一致仍然中止。该重跑使用原编译设置，不宣称消除了误差，也不将内部核对改为通过。",
                  "运行成功、内部一致、跨框架等价和质量通过是不同判据。短测质量只作诊断，不能替代开发或确认；不因修复成功自动改变候选选择或默认 baseline。", "",
                  "|短测|运行|严格内部核对|与官方闭环等价|热核心 ms|热闭环 ms|", "|---|---|---|---|---:|---:|"]
         for r in records:
@@ -95,8 +100,18 @@ def finalize(root):
             w=csv.DictWriter(f,fieldnames=fields,extrasaction="ignore");w.writeheader();w.writerows(records)
         # Original files are never overwritten. This receipt binds the base and addendum.
         atomic_json(repair / "base_bundle_reference.json",dict(name=base_path.name,sha256=base["sha256"],size=base_path.stat().st_size))
-        receipt=archive(repair,root.with_name(root.name+".gap_repair.tar.gz"),exclude_cache=True)
-        atomic_json(root.with_name(root.name+".gap_repair.bundle.json"),receipt)
+        if attempt == "gap_repair_classification":
+            prior=root/"gap_repair"
+            previous=repair/"prior_cast_attempt"
+            previous.mkdir(exist_ok=True)
+            for name in ("plan.json","summary.json","status.json"):
+                shutil.copy2(prior/name,previous/name)
+            for source in (prior/"jobs").glob("*/*"):
+                if source.name in ("console.log","result.json","task.json"):
+                    dest=previous/"jobs"/source.parent.name/source.name
+                    dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,dest)
+        receipt=archive(repair,root.with_name(root.name+"."+attempt+".tar.gz"),exclude_cache=True)
+        atomic_json(root.with_name(root.name+"."+attempt+".bundle.json"),receipt)
         # Small default deliverable: no model/optimizer snapshots, frame arrays,
         # raw profiler traces, nested archives or duplicated per-frame JSON.
         analysis=root/"analysis_delivery"
@@ -129,4 +144,5 @@ def finalize(root):
 
 if __name__ == "__main__":
     p=argparse.ArgumentParser();p.add_argument("--output",required=True,type=Path)
-    finalize(p.parse_args().output.resolve())
+    p.add_argument("--attempt",choices=("gap_repair","gap_repair_classification"),default="gap_repair")
+    args=p.parse_args();finalize(args.output.resolve(),args.attempt)

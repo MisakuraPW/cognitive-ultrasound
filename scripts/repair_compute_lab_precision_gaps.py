@@ -36,8 +36,10 @@ def validate_task(name, task, result):
         raise ValueError("Failure is not the investigated compiler/eager mismatch")
 
 
-def run(root):
-    output = root / "gap_repair"
+def run(root, attempt="gap_repair", emulate=True):
+    if attempt not in ("gap_repair", "gap_repair_classification"):
+        raise ValueError("Unknown bounded repair attempt")
+    output = root / attempt
     output.mkdir(exist_ok=True)
     with run_lock(root), run_lock(output):
         state = read_json(root / "status.json")
@@ -50,8 +52,8 @@ def run(root):
         cfg = read_json(root / "config.json")
         plan = dict(
             jobs=list(JOBS),
-            compiler_option={"emulate_precision_casts": True},
-            reason="Preserve eager fp16/bf16 downcast-upcast rounding across fused operators",
+            compiler_option={"emulate_precision_casts": emulate},
+            reason="Preserve eager rounding hypothesis" if emulate else "Original compiler settings; record B numerical rejection separately from runtime failure; unchanged strict tolerance",
             unchanged_tolerance=dict(atol=2e-4, rtol=2e-4),
             scientific_config_sha256=sha256(root / "config.json"),
             original_identity_sha256=sha256(root / "identity.json"),
@@ -75,7 +77,7 @@ def run(root):
             if not result.exists():
                 task = dict(task, output=str(directory))
                 atomic_json(directory / "task.json", task)
-                env = dict(os.environ, TORCHINDUCTOR_EMULATE_PRECISION_CASTS="1", TORCHINDUCTOR_COMPILE_THREADS="1",
+                env = dict(os.environ, TORCHINDUCTOR_EMULATE_PRECISION_CASTS="1" if emulate else "0", TORCHINDUCTOR_COMPILE_THREADS="1",
                            CUBLAS_WORKSPACE_CONFIG=":4096:8", NVIDIA_TF32_OVERRIDE="0",
                            OMP_NUM_THREADS=str(cfg["threads"]), PYTHONUNBUFFERED="1")
                 command = [cfg["pythons"]["torch"], "-m", "cognitive_ultrasound.compute_lab", "worker",
@@ -114,4 +116,7 @@ def run(root):
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--output", required=True, type=Path)
-    run(p.parse_args().output.resolve())
+    p.add_argument("--attempt", choices=("gap_repair","gap_repair_classification"), default="gap_repair")
+    p.add_argument("--emulate-precision-casts", choices=(0,1), type=int, default=1)
+    args=p.parse_args()
+    run(args.output.resolve(),args.attempt,bool(args.emulate_precision_casts))
