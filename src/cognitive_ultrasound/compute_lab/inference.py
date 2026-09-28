@@ -10,6 +10,7 @@ import psutil
 
 from ..experiments import case_seed
 from ..preparation.common import atomic_json, metrics, read_json
+from ..provenance import sha256
 from .data import Writer, frames
 from .protocol import Profile, numeric
 
@@ -108,6 +109,11 @@ def run(task, cfg, root, output):
             ref_file = cache_path(root, cohort, seed, budget, name)
             is_ref = profile.name == "official"
             reference = None if is_ref else h5py.File(ref_file, "r")
+            if not is_ref:
+                expected_hash = ref_file.with_suffix(".sha256").read_text(encoding="ascii").strip()
+                if sha256(ref_file) != expected_hash:
+                    reference.close()
+                    raise ValueError("Reference state/noise cache checksum mismatch")
             if is_ref:
                 engine.reset(case_seed(seed, name))
                 initial = engine.snapshot()
@@ -269,6 +275,9 @@ def run(task, cfg, root, output):
                     iterator.close()
             if is_ref:
                 temporary.replace(ref_file)
+                ref_file.with_suffix(".sha256").write_text(
+                    sha256(ref_file) + "\n", encoding="ascii"
+                )
             else:
                 with h5py.File(temporary) as check:
                     if len(check) != count:
@@ -287,6 +296,8 @@ def run(task, cfg, root, output):
                 ram_peak_bytes=peak_ram,
             )
             atomic_json(receipt, record)
+            if hasattr(engine, "probes"):
+                atomic_json(output / "operator_checks.json", engine.probes)
             all_rows.extend(rows)
             replay_records.extend(replays)
             micro.extend(micro_here)
@@ -304,7 +315,13 @@ def run(task, cfg, root, output):
             micro=micro,
             equivalence_passed=numerical,
             bitwise=bool(checks and all(c["bitwise"] for c in checks)),
-            operator_checks=getattr(engine, "probes", None),
+            operator_checks=(
+                getattr(engine, "probes", None)
+                if engine
+                else read_json(output / "operator_checks.json")
+                if (output / "operator_checks.json").exists()
+                else None
+            ),
             model_load_s=load_s,
             task_wall_s=time.perf_counter() - task_start,
             ram_peak_bytes=peak_ram,
@@ -320,6 +337,9 @@ def export(cfg, output):
     from ..torch_casl.reference import export_network, load_model, probes
 
     model = load_model(cfg["checkpoint"])
+    import jax
+
+    jax.config.update("jax_default_matmul_precision", "highest")
     export_network(model, cfg["checkpoint"], output)
     probes(model, output)
     atomic_json(

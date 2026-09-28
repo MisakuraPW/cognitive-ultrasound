@@ -101,8 +101,9 @@ def test_sequence_worker_micro_replay_and_case_boundary_resume(tmp_path, monkeyp
     assert len(candidate["micro"]) == 20 and candidate["equivalence_passed"]
     assert candidate["replay"][0]["checks"]["prediction"]["passed"]
     before = Engine.calls
-    execute(Profile("jax_prefetch", io="prefetch"), "candidate")
+    resumed = execute(Profile("jax_prefetch", io="prefetch"), "candidate")
     assert Engine.calls == before  # case receipt prevents repeated compute
+    assert resumed["operator_checks"]["passed"]
 
 
 def test_cuda_capture_changed_inputs_gradient_and_no_output_alias():
