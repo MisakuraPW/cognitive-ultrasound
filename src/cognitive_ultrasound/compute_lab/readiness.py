@@ -3,6 +3,7 @@
 import argparse
 import importlib.metadata as metadata
 import json
+import os
 import subprocess
 import sys
 
@@ -26,7 +27,13 @@ def main():
             if packages[name] != version:
                 raise RuntimeError(f"{name}: expected {version}, found {packages[name]}")
     value = dict(python=sys.executable, requirements=sha256(requirement), packages=packages)
-    subprocess.run([sys.executable, "-m", "pip", "check"], check=True)
+    # The Torch env intentionally does not install the full JAX application.
+    # Do not inject src/*.egg-info into pip's inventory via worker PYTHONPATH.
+    subprocess.run(
+        [sys.executable, "-m", "pip", "check"],
+        check=True,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+    )
     if args.action == "write":
         receipt.parent.mkdir(exist_ok=True)
         receipt.write_text(json.dumps(value, indent=2))

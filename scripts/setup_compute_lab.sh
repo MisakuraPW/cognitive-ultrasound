@@ -14,7 +14,7 @@ torch_python="${TORCH_PYTHON:-/root/miniconda3/bin/python}"
   unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
   "$torch_python" -m pip install --index-url "${COMPUTE_PIP_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}" -r requirements/compute-torch.txt
 )
-"$torch_python" -m pip check
+PYTHONPATH= "$torch_python" -m pip check
 /root/miniconda3/envs/casl/bin/python -m pip check
 "$torch_python" -m cognitive_ultrasound.compute_lab.readiness write
 echo 'Existing CUDA/Torch/JAX/TensorFlow retained. Next: bash scripts/run_compute_lab.sh start'
