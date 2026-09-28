@@ -341,7 +341,7 @@ class Suite:
                     value = self.job(
                         f"capacity_casl_{batch}", dict(kind="capacity", batch=batch), "tensorflow"
                     )
-                    capacity_results.append(dict(batch=batch, **value))
+                    capacity_results.append(dict(value, batch=batch))
                     if value["status"] != "completed":
                         break
                 atomic_json(
