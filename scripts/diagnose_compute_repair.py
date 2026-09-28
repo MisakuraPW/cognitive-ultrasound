@@ -51,7 +51,7 @@ def main():
         locked = True
     results = {'lock_reproduced': locked, 'holders': holders, 'graphs': []}
     print(json.dumps(results), flush=True)
-    for steps in (1, 2, 50):
+    for steps in (50,):
         graph = CapturedFrame(model, tensors, steps)
         for factor in (1., .97, .83, 1.):
             changed = (tensors[0]*factor, tensors[1], tensors[2]*factor, tensors[3]*factor)
@@ -61,6 +61,17 @@ def main():
             diffs = [float((a.float()-b.float()).abs().max()) for a,b in zip(actual,expected)]
             results['graphs'].append(dict(steps=steps, factor=factor, max_abs=diffs))
             print(json.dumps(results['graphs'][-1]), flush=True)
+        for deterministic in (False, True):
+            torch.backends.cudnn.deterministic = deterministic
+            expected = model.frame(*tensors, steps=steps)
+            repeats = []
+            for _ in range(3):
+                other = model.frame(*tensors, steps=steps)
+                repeats.append([float((a.float()-b.float()).abs().max()) for a,b in zip(other,expected)])
+            graph = CapturedFrame(model, tensors, steps)
+            captured = graph(*tensors)
+            diffs = [float((a.float()-b.float()).abs().max()) for a,b in zip(captured,expected)]
+            print(json.dumps(dict(deterministic=deterministic, uncaptured_repeat=repeats, capture_diff=diffs)), flush=True)
     (out / 'diagnosis.json').write_text(json.dumps(results, indent=2))
 
 
