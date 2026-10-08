@@ -137,6 +137,38 @@ def test_two_stage_history_common_noise_and_zero_skip(cfg):
         assert not set(r["lines1"]) & set(r["lines2"])
 
 
+@pytest.mark.parametrize("fixed", [(10, 4), [10, 4], [(10, 4), (4, 0), (7, 2), (14, 4)]])
+def test_fixed_json_pair_and_frame_schedule(cfg, fixed):
+    _, rows, _ = rollout(
+        cfg, ToyPerception(), ToyTask(), sample_frames(), initialize(42, cfg), "E0", 42, fixed=fixed
+    )
+    expected = [(10, 4)] * 4 if len(np.asarray(fixed).shape) == 1 else fixed
+    assert [(r["k1"], r["k2"]) for r in rows] == expected
+
+
+def test_exact_forward_vjp_retains_primal_and_gradients():
+    from cognitive_ultrasound.task_budget.perception import exact_forward_vjp
+
+    kernel = jax.jit(lambda h, m, p, key: jnp.sin(h * m) + p**2)
+    wrapped = exact_forward_vjp(kernel)
+    inputs = (
+        jnp.arange(4, dtype=float),
+        jnp.ones(4) * 0.3,
+        jnp.ones(4) * 0.2,
+        jax.random.PRNGKey(42),
+    )
+    value, grads = jax.value_and_grad(
+        lambda h, m, p: jnp.sum(wrapped(h, m, p, inputs[3])), argnums=(0, 1, 2)
+    )(*inputs[:3])
+    expected, eg = jax.value_and_grad(
+        lambda h, m, p: jnp.sum(kernel(h, m, p, inputs[3])), argnums=(0, 1, 2)
+    )(*inputs[:3])
+    np.testing.assert_array_equal(np.asarray(wrapped(*inputs)), np.asarray(kernel(*inputs)))
+    assert value == expected
+    for a, b in zip(grads, eg):
+        np.testing.assert_allclose(a, b, rtol=2e-4, atol=2e-4)
+
+
 def test_first_decision_cannot_read_current_unobserved_pixels(cfg):
     p = initialize(42, cfg)
     frames = sample_frames()

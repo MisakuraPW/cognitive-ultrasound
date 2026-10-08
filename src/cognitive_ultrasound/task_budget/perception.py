@@ -71,6 +71,7 @@ class CASLPerception:
             return self.posterior(history, masks, previous, key)
 
         self.warm = jax.jit(jax.checkpoint(warm))
+        self.replay_warm = exact_forward_vjp(self.warm)
         self.zeros = jnp.zeros((112, 112, 3), jnp.float32)
 
     def infer(self, history, masks, previous, key, cold=False):
@@ -82,3 +83,35 @@ class CASLPerception:
             if cold
             else self.warm(history, masks, jnp.asarray(previous), key)
         )
+
+    def infer_for_replay(self, history, masks, previous, key):
+        import jax.numpy as jnp
+
+        return self.replay_warm(
+            jnp.asarray(history), jnp.asarray(masks), jnp.asarray(previous), key
+        )
+
+
+def exact_forward_vjp(kernel):
+    """Execute the SAME compiled primal for rollout and GS, differentiate separately.
+
+    Higher-order AD may change XLA's fused primal execution. A custom VJP keeps
+    the actual hard forward on the original kernel, without relaxing its replay gate.
+    Backward still differentiates the declared local mask-relaxed sampler.
+    """
+    import jax
+
+    @jax.custom_vjp
+    def sample(history, masks, previous, key):
+        return kernel(history, masks, previous, key)
+
+    def forward(history, masks, previous, key):
+        return kernel(history, masks, previous, key), (history, masks, previous, key)
+
+    def backward(saved, cotangent):
+        history, masks, previous, key = saved
+        _, pullback = jax.vjp(lambda h, m, p: kernel(h, m, p, key), history, masks, previous)
+        return (*pullback(cotangent), None)
+
+    sample.defvjp(forward, backward)
+    return sample

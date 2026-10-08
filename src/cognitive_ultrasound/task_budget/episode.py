@@ -29,6 +29,11 @@ def rollout(
     previous = None
     past_images, contexts, rows, images = [], [], [], []
     last_budget = 0
+    fixed_array = np.asarray(fixed)
+    if fixed_array.shape == (2,):
+        fixed_array = np.broadcast_to(fixed_array, (len(frames), 2))
+    if fixed_array.shape != (len(frames), 2) or fixed_array.dtype.kind not in "iu":
+        raise ValueError("Fixed budget must be an integer pair or one pair per frame")
     for index, frame in enumerate(frames):
         start = time.perf_counter()
         if progress:
@@ -48,11 +53,7 @@ def rollout(
         )
         first = cfg["budgets"]["first"]
         legal0 = np.ones(len(first), bool)
-        fixed_now = (
-            cfg["budgets"]["fixed"]
-            if cold
-            else (fixed[index] if isinstance(fixed, list) else fixed)
-        )
+        fixed_now = cfg["budgets"]["fixed"] if cold else fixed_array[index].tolist()
         if method == "E0" or cold:
             k1 = fixed_now[0]
             action0, noise0 = first.index(k1), np.zeros(len(first), np.float32)
@@ -187,13 +188,14 @@ def gs_local_objective(params, context, adjoint, perception, cfg, temperature, c
     target = jnp.asarray(c["target"])
     h = jnp.concatenate([jnp.asarray(c["history"])[..., 1:], (mask0 * target)[..., None]], axis=-1)
     m = jnp.concatenate([jnp.asarray(c["masks"])[..., 1:], mask0[..., None]], axis=-1)
-    samples = perception.infer(h, m, c["previous"], c["key0"])
+    infer = getattr(perception, "infer_for_replay", perception.infer)
+    samples = infer(h, m, c["previous"], c["key0"])
     middle = samples[0, ..., -1] * (1 - mask0) + target * mask0
     if c["k2"]:
         full_mask = mask0 + mask2
         h = h.at[..., -1].set(full_mask * target)
         m = m.at[..., -1].set(full_mask)
-        samples = perception.infer(h, m, samples, c["key1"])
+        samples = infer(h, m, samples, c["key1"])
         output = samples[0, ..., -1] * (1 - full_mask) + target * full_mask
     else:
         output = middle + mask2 * (target - middle)
