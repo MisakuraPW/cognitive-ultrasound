@@ -1,0 +1,39 @@
+# New research batch. Explicitly chosen 25-step FP32 approximation for ALL three arms.
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+file_list: /root/autodl-fs/datasets/EchoNet-Dynamic/FileList.csv
+raw_videos: /root/autodl-fs/datasets/EchoNet-Dynamic/Videos
+split_manifest: configs/splits/split.yaml
+checkpoint: checkpoints/official
+ef_weights: checkpoints/tasks/ef/r2plus1d_18_32_2_pretrained.pt
+ef_stats: checkpoints/tasks/ef/preprocessing.json
+torch_python: /root/miniconda3/bin/python
+task_device: cuda
+cohort_seed: 20261008
+cohorts: {train: 32, development: 8, confirmation: 16}
+seeds: [42, 31415, 271828]
+perception: {warm_steps: 25, particles: 2, precision: float32, omega: 10}
+task: {frames: 32, period: 2, stride: 16, score: official_tbig_mean_gradient_squared}
+budgets:
+  first: [4, 7, 10, 14]
+  second: [0, 2, 4, 7, 14]
+  maximum: 28
+  fixed: [10, 4]
+  fixed_sweep: [[4, 0], [7, 0], [10, 0], [10, 4], [14, 7], [14, 14]]
+training:
+  clip_frames: 64
+  updates: 50
+  lambdas: [0.0, 2.0, 8.0] # EF error in percentage points; acquisition cost normalized by112
+  hidden: 32
+  learning_rate: 0.001
+  temperature_start: 1.0
+  temperature_end: 0.3
+  rl_baseline_decay: 0.9
+  gradient_clip: 1.0
+  gs_gradient: local_frame_vjp # explicit truncated cross-frame gradient; full hard forward
+  gs_probe_frame: 2
+runtime:
+  threads: 4
+  job_timeout_hours: 12
+  ef_request_timeout_seconds: 180
+  min_free_gib: 5
+  raw_stats_samples: 128

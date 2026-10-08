@@ -1,0 +1,9 @@
+# Explicit all-stage smoke batch, not a scientific efficacy result.
+extends: task_budget_ef.yaml
+cohorts: {train: 4, development: 2, confirmation: 2}
+seeds: [42]
+training:
+  updates: 2
+  lambdas: [2.0]
+budgets:
+  fixed_sweep: [[4, 0], [10, 4], [14, 14]]
