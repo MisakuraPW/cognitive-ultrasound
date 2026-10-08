@@ -14,6 +14,8 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8
 action="${1:-start}"
 output="${2:-/root/autodl-tmp/outputs_casl/task_budget_ef_v1}"
 config="${TASK_BUDGET_CONFIG:-configs/task_budget_ef.yaml}"
+runtime_threads="$(python -c 'import sys; from cognitive_ultrasound.task_budget.data import configuration; print(configuration(sys.argv[1])["runtime"]["threads"])' "$config")"
+export OMP_NUM_THREADS="$runtime_threads" TF_NUM_INTRAOP_THREADS="$runtime_threads"
 if [[ "$action" == optimize ]]; then
   source_output="${TASK_BUDGET_SOURCE:-/root/autodl-tmp/outputs_casl/task_budget_ef_v2}"
   output="${2:-/root/autodl-tmp/outputs_casl/task_budget_engineering_v1}"
