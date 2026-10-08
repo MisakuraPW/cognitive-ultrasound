@@ -29,7 +29,9 @@ def report(root):
     full_file=root/"full_video_verification.json"
     full=read_json(full_file) if full_file.exists() else None
     if full and full["verification"].get("passed") and full["verification"].get("actions_identical"):
-        label,item=min((("full_fast_serial",full["serial"]),("full_fast_parallel2",full["parallel"])),key=lambda p:p[1]["process_work_s"])
+        label,item="full_fast_serial",full["serial"]
+        if full["parallel"]["process_work_s"] < .9*item["process_work_s"]:
+            label,item="full_fast_parallel2",full["parallel"]
         selected_name,selected=label,item
     eval_frames=sum(manifest["files"][n]["frames"] for cohort in ("development","confirmation") for n in manifest["cohorts"][cohort])
     # Every seed:6 fixed videos and2 methods*3 lambdas*(dynamic+matched) videos.
@@ -61,7 +63,8 @@ def report(root):
                 original=control["original"]["measured_updates"]
                 times=[b["seconds"]-b["backward_wall_s"]+a["backward_wall_s"] for a,b in zip(original,records)]
                 combined_estimate=True
-            training[method]=dict(remaining_updates=todo,measured_update_s=times,training_verification=control.get("passed"),
+            training[method]=dict(remaining_updates=todo,measured_update_s=[r["seconds"] for r in records],
+                                  compatible_update_seconds_for_projection=times,training_verification=control.get("passed"),
                                   combined_component_estimate=combined_estimate,
                                   projected_hours_low=todo*min(times)/3600,
                                   projected_hours_high=todo*max(times)/3600,
