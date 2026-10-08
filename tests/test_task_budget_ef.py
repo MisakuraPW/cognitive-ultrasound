@@ -195,6 +195,29 @@ def test_gs_task_gradient_reaches_both_heads_and_replays_hard_frame(cfg, second)
     assert gate["hard_replay_max_abs"] < 2e-4
 
 
+@pytest.mark.parametrize("second", [0, 4])
+def test_compiled_gs_changes_inputs_without_stale_history(cfg, second):
+    class PureToy:
+        def infer(self, history, masks, previous, key, cold=False):
+            h = jnp.asarray(history)
+            image = .6*h + .15*jnp.mean(h,axis=(0,1),keepdims=True)
+            return jnp.stack([image-.03,image+.03])
+
+    perception = PureToy()
+    params = initialize(42,cfg)
+    fast = copy.deepcopy(cfg)
+    fast["runtime"]["gs_execution"] = "jit"
+    for shift,temperature in ((0.,1.),(.1,.4)):
+        images,_,contexts = rollout(cfg,perception,ToyTask(),sample_frames(3)+shift,
+                                    params,"E0",42,fixed=(10,second))
+        _,adjoint,_ = ToyTask().video(images,True)
+        a,_ = gs_gradient(params,contexts,adjoint,perception,cfg,temperature,2.)
+        b,gate = gs_gradient(params,contexts,adjoint,perception,fast,temperature,2.)
+        for x,y in zip(jax.tree_util.tree_leaves(a),jax.tree_util.tree_leaves(b)):
+            np.testing.assert_allclose(x,y,atol=2e-4,rtol=2e-4)
+        assert gate["hard_replay_max_abs"] < 2e-4
+
+
 def test_rl_mask_illegal_actions_and_resume_adam(cfg, tmp_path):
     p = initialize(42, cfg)
     p["second"]["b2"] = jnp.array([0, 0, 0, 0, 1000.0])
