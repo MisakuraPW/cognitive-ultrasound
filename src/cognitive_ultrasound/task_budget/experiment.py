@@ -352,7 +352,7 @@ def evaluate(spec, cfg, manifest, root, output):
             records.append(record)
             emit("evaluation", job=spec["id"], **record)
         atomic_json(
-            output / "result.json",
+            output / ("pilot_result.json" if spec.get("_pilot") else "result.json"),
             dict(
                 status="completed",
                 method=spec["method"],

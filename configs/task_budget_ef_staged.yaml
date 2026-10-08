@@ -1,0 +1,13 @@
+extends: task_budget_ef.yaml
+# Scientific points and training/RNG schedules are unchanged; only execution order changes.
+runtime:
+  threads: 2
+  ipc_mode: uncompressed
+  ef_execution: eager
+  gs_execution: eager
+  evaluation_workers: 1
+execution:
+  pilot_seed: 42
+  pilot_lambda: 2.0
+  pilot_cases: 4
+  pilot_fixed: [10, 4]

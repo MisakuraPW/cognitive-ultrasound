@@ -190,17 +190,33 @@ def run(cfg, root, action="run", phase="all"):
         )
         atomic_json(root / "status.json", state)
         try:
-            for spec in plan:
+            from .staging import execution_schedule, pilot_report
+            schedule = execution_schedule(plan, cfg, manifest) if phase == "all" else [(s, False) for s in plan]
+            atomic_json(root / "execution_schedule.json", [dict(job=s["id"] if s else "PILOT_REPORT", pilot=p) for s,p in schedule])
+            for spec, is_pilot in schedule:
+                if spec is None:
+                    first = pilot_report(root, cfg, manifest)
+                    emit("PILOT_READY", status=first["status"], report=str(root/"PILOT_REPORT.md"))
+                    if first["status"] != "completed":
+                        raise RuntimeError("Pilot incomplete; preserve evidence and do not launch remaining batch")
+                    state.update(pilot_completed=True, execution_phase="full")
+                    atomic_json(root/"status.json",state)
+                    continue
                 if phase in ("probe", "calibrate") and spec["id"] != "probe":
                     break
                 if (root / "STOP").exists():
                     state["status"] = "stopped"
                     break
                 directory = root / "jobs" / spec["id"]
-                result = directory / "result.json"
+                state["execution_phase"] = "pilot" if is_pilot else "full"
+                if spec.get("_pilot") and (directory/"result.json").exists() and read_json(directory/"result.json").get("status")=="completed":
+                    emit("REUSE", job=spec["id"], reason="full result already includes pilot cases")
+                    continue
+                result = directory / ("pilot_result.json" if spec.get("_pilot") else "result.json")
                 if result.exists():
                     value = read_json(result)
                     if value.get("status") == "completed":
+                        emit("REUSE", job=spec["id"], scope="pilot" if is_pilot else "full")
                         continue
                     if action == "resume":
                         # Explicit bounded retry, preserving original terminal evidence.
@@ -239,7 +255,7 @@ def run(cfg, root, action="run", phase="all"):
                     raise RuntimeError("Insufficient storage reserve")
                 directory.mkdir(parents=True, exist_ok=True)
                 atomic_json(directory / "task.json", spec)
-                emit("STAGE", job=spec["id"])
+                emit("STAGE", job=spec["id"], execution_phase=state["execution_phase"], cases=spec.get("_case_names"))
                 with (directory / "console.log").open("a", encoding="utf-8") as stream:
                     proc = subprocess.Popen(
                         [

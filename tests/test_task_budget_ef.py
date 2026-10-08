@@ -218,6 +218,32 @@ def test_compiled_gs_changes_inputs_without_stale_history(cfg, second):
         assert gate["hard_replay_max_abs"] < 2e-4
 
 
+def test_pilot_is_same_scientific_plan_and_confirmation_stays_last(cfg):
+    from cognitive_ultrasound.task_budget.suite import jobs
+    from cognitive_ultrasound.task_budget.staging import execution_schedule
+
+    staged=copy.deepcopy(cfg)
+    staged["execution"]=dict(pilot_seed=42,pilot_lambda=2.,pilot_cases=4,pilot_fixed=[10,4])
+    canonical=jobs(staged)
+    assert canonical==jobs(cfg) and len(canonical)==91
+    manifest=dict(cohorts=dict(development=[f"case{i}" for i in range(8)]))
+    schedule=execution_schedule(canonical,staged,manifest)
+    boundary=next(i for i,(s,_) in enumerate(schedule) if s is None)
+    before=schedule[:boundary]
+    assert all(s.get("cohort")!="confirmation" for s,_ in before)
+    assert {s["method"] for s,_ in before if s.get("kind")=="evaluate"}=={"E0","E1","E2"}
+    assert all(s["_case_names"]==manifest["cohorts"]["development"][:4] for s,_ in before if s.get("kind")=="evaluate")
+    assert [s for s,_ in schedule[boundary+1:]]==canonical
+
+
+def test_pilot_cannot_add_new_parameter_points(cfg):
+    from cognitive_ultrasound.task_budget.staging import pilot_ids
+
+    cfg=copy.deepcopy(cfg)
+    cfg["execution"]=dict(pilot_seed=99,pilot_lambda=2.,pilot_cases=4,pilot_fixed=[10,4])
+    with pytest.raises(ValueError):pilot_ids(cfg)
+
+
 def test_rl_mask_illegal_actions_and_resume_adam(cfg, tmp_path):
     p = initialize(42, cfg)
     p["second"]["b2"] = jnp.array([0, 0, 0, 0, 1000.0])
