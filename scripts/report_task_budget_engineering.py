@@ -54,10 +54,18 @@ def report(root):
         if records:
             # The first update may compile additional branches; bracket observed real updates.
             times=[r["seconds"] for r in records]
+            combined_estimate=False
+            if control and not control.get("passed") and method=="E1":
+                # Reject GS JIT. Combine measured original backward with optimized,
+                # bitwise-identical forward; this is an estimate, not a measured new update.
+                original=control["original"]["measured_updates"]
+                times=[b["seconds"]-b["backward_wall_s"]+a["backward_wall_s"] for a,b in zip(original,records)]
+                combined_estimate=True
             training[method]=dict(remaining_updates=todo,measured_update_s=times,training_verification=control.get("passed"),
+                                  combined_component_estimate=combined_estimate,
                                   projected_hours_low=todo*min(times)/3600,
                                   projected_hours_high=todo*max(times)/3600,
-                                  limitation="two real updates; different budgets/data/GS branches can cost more")
+                                  limitation="two updates; E1 if rejected uses original backward + measured optimized forward; not direct whole-update timing")
         else:
             training[method]=dict(remaining_updates=todo,status="not_measured",reason=value.get("error",value.get("reason")))
     if all("projected_hours_low" in x for x in training.values()):
@@ -79,6 +87,13 @@ def report(root):
                            "Compile/transport/thread classification is separate from numerical verification",
                            "Historical case scientific records can be referenced only after lineage audit; old timings retain old runtime"])
     atomic_json(root/"report.json",data)
+    qualified=read_json(root/"recommendation.json")
+    if not training_checks.get("E1",{}).get("passed",False):
+        qualified["config"]["runtime"]["gs_execution"]="eager"
+    qualified["config"]["runtime"]["evaluation_workers"]=2 if selected_name.endswith("parallel2") else 1
+    qualified.update(adopted=False,gs_jit_training_verified=training_checks.get("E1",{}).get("passed",False),
+                     decision="User decides; original GS retained when strict training-gradient check fails")
+    atomic_json(root/"qualified_recommendation.json",qualified)
     lines=["# EF 工程加速短测报告","", "正式实验已暂停。本报告只说明工程短测，不自动恢复91项清单。", "",
            "|候选|EF请求均值 ms|数值通过|选线一致|", "|---|---:|---|---|"]
     for x in screens:
