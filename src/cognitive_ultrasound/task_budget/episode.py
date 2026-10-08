@@ -224,6 +224,7 @@ def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature,
     total = jax.tree_util.tree_map(jnp.zeros_like, params)
     task_total = jax.tree_util.tree_map(jnp.zeros_like, params)
     max_replay = 0.0
+    gradient_primal_delta = 0.0
     started = time.perf_counter()
     length = len(contexts)
     for c, g in zip(contexts, image_gradients):
@@ -233,8 +234,17 @@ def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature,
         def objective(p, weight):
             return gs_local_objective(p, c, g, perception, cfg, temperature, weight, length)
 
-        (_, out), task_gradient = jax.value_and_grad(lambda p: objective(p, 0.0), has_aux=True)(
+        # Validate the actual physical hard replay outside AD. The GS Jacobian is
+        # an explicitly approximate estimator; AD's auxiliary primal can be
+        # fused differently on GPU and is recorded separately, never used as video output.
+        _, out = objective(params, 0.0)
+        (_, ad_out), task_gradient = jax.value_and_grad(lambda p: objective(p, 0.0), has_aux=True)(
             params
+        )
+        if not np.isfinite(np.asarray(ad_out)).all():
+            raise FloatingPointError("Nonfinite AD linearization primal")
+        gradient_primal_delta = max(
+            gradient_primal_delta, float(np.max(np.abs(np.asarray(ad_out) - np.asarray(out))))
         )
 
         # Compute the inexpensive cost derivative separately, avoiding a second DPS VJP.
@@ -273,6 +283,8 @@ def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature,
     return total, dict(
         task_gradient_norms=norms,
         hard_replay_max_abs=max_replay,
+        gradient_linearization_primal_max_abs=gradient_primal_delta,
+        gradient_estimator_approximate=True,
         backward_wall_s=time.perf_counter() - started,
         gradient_scope="local frame; temporal history, state features, ranking detached; "
         "zero-K2 direct-projection ST surrogate",
