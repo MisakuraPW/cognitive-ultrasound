@@ -10,7 +10,9 @@ source /root/miniconda3/etc/profile.d/conda.sh
 conda activate casl
 # Original-video reference evaluation also decodes AVI in the JAX worker.
 # Pin just the CPU OpenCV wheel; do not let this step change NumPy/CUDA packages.
-python -m pip install --no-deps 'opencv-python-headless==4.12.0.88'
+if ! python -c 'import cv2' >/dev/null 2>&1; then
+  python -m pip install --no-deps --index-url "${TASK_PIP_INDEX_URL:-https://pypi.org/simple}" 'opencv-python-headless>=4.8,<5'
+fi
 # JAX's pip CUDA wheels provide their own libraries.
 unset LD_LIBRARY_PATH
 export KERAS_BACKEND=jax XLA_PYTHON_CLIENT_PREALLOCATE=false
