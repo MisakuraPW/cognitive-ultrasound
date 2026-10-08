@@ -73,7 +73,7 @@ def ef_trial(cfg, output, input_file, coordinates_file):
         task.close()
 
 
-def rollout_trial(cfg, manifest, output):
+def rollout_trial(cfg, manifest, output, frame_count=64):
     from cognitive_ultrasound.task_budget.experiment import evaluate
     root = output
     atomic_json(root/"config.json", cfg)
@@ -81,7 +81,7 @@ def rollout_trial(cfg, manifest, output):
     small["cohorts"]["development"] = manifest["cohorts"]["development"][:2]
     atomic_json(root/"manifest.json", small)
     spec = dict(id="paired64", kind="evaluate", method="E0", fixed=[10, 4],
-                seed=42, cohort="development", _calibration_frames=64, _calibration_save_full=True)
+                seed=42, cohort="development", _calibration_frames=frame_count, _calibration_save_full=True)
     job = root/"jobs"/spec["id"]
     job.mkdir(parents=True, exist_ok=True)
     atomic_json(job/"task.json", spec)
@@ -105,9 +105,9 @@ def rollout_trial(cfg, manifest, output):
     atomic_npz(output/"arrays.npz", **arrays)
     atomic_json(output/"discrete.json", discrete)
     return dict(status="completed", process_work_s=time.perf_counter()-start,
-                sum_case_s=sum(x["seconds"] for x in value["records"]), frames=128,
+                sum_case_s=sum(x["seconds"] for x in value["records"]), frames=sum(x["frames"] for x in value["records"]),
                 runtime=cfg["runtime"], case_seconds=[x["seconds"] for x in value["records"]],
-                timing_scope="two fixed cases, first64 frames, includes model load/JIT/full-input references and output")
+                timing_scope=f"two fixed cases, frames={frame_count or 'full'}, includes model load/JIT/full-input references and output")
 
 
 def gs_trial(cfg, manifest, output):
@@ -191,8 +191,19 @@ def training_trial(cfg, manifest, output, source, method):
                 shutil.copy2(file, output/"updates"/file.name)
             start_update = int(npz(checkpoints[-1])["step"])
     spec = dict(id="isolated_training",kind="train",method=method,seed=42,**{"lambda":0.0})
+    def audit(update, images, rows, gradients):
+        first=np.zeros((len(rows),112),bool);second=np.zeros_like(first)
+        for index,row in enumerate(rows):
+            first[index,row["lines1"]]=True;second[index,row["lines2"]]=True
+        arrays=dict(images=images,first_mask=first,second_mask=second,
+                    budgets=np.array([[r["k1"],r["k2"]] for r in rows]),
+                    state_before=np.array([r["state_before"] for r in rows]),
+                    state_intermediate=np.array([r["state_intermediate"] for r in rows]))
+        arrays.update({f"gradient.{h}.{k}":np.asarray(v) for h,t in gradients.items() for k,v in t.items()})
+        atomic_npz(output/"audit"/f"{update:05d}.npz",**arrays)
     started=time.perf_counter()
-    train(spec,cfg,manifest,output,output,end_update=start_update+2)
+    train(spec,cfg,manifest,output,output,end_update=start_update+2,
+          audit_callback=audit if cfg["runtime"].get("audit_training") else None)
     records=[read_json(p) for p in sorted((output/"updates").glob("*.json")) if int(p.stem)>start_update]
     return dict(status="completed",method=method,start_update=start_update,production_advanced=False,
                 measured_updates=records,process_work_s=time.perf_counter()-started,
@@ -207,7 +218,8 @@ def child(args, name, cfg, action, timeout):
     atomic_json(output/"trial_config.json", cfg)
     env = dict(os.environ, OMP_NUM_THREADS=str(cfg["runtime"]["threads"]))
     command = [sys.executable, "-u", str(Path(__file__).resolve()), "--source", str(args.source),
-               "--output", str(output), "--action", action, "--trial-config", str(output/"trial_config.json")]
+               "--output", str(output), "--action", action, "--trial-config", str(output/"trial_config.json"),
+               "--frames", str(getattr(args,"frames",64))]
     start = time.perf_counter()
     from cognitive_ultrasound.preparation.suite import stop_process
     with (output/"console.log").open("a",encoding="utf-8") as log:
@@ -303,6 +315,7 @@ def main():
     parser.add_argument("--output",type=Path,required=True)
     parser.add_argument("--action",choices=("coordinate","ef","rollout","gs","train_E1","train_E2"),default="coordinate")
     parser.add_argument("--trial-config",type=Path)
+    parser.add_argument("--frames",type=int,default=64)
     args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
     if args.action=="coordinate":return coordinate(args)
     cfg=read_json(args.trial_config);manifest=read_json(args.source/"manifest.json")
@@ -310,7 +323,7 @@ def main():
         if args.action=="ef":
             folders=sorted(args.source.glob("jobs/*/.ipc/input.npz"),key=lambda p:p.stat().st_mtime,reverse=True)
             result=ef_trial(cfg,args.output,folders[0],folders[0].parent/"coordinates.npz")
-        elif args.action=="rollout":result=rollout_trial(cfg,manifest,args.output)
+        elif args.action=="rollout":result=rollout_trial(cfg,manifest,args.output,args.frames or None)
         elif args.action=="gs":result=gs_trial(cfg,manifest,args.output)
         else:result=training_trial(cfg,manifest,args.output,args.source,args.action.removeprefix("train_"))
         atomic_json(args.output/"result.json",result)

@@ -71,7 +71,7 @@ def probe(cfg, manifest, root, output):
         task.close()
 
 
-def train(spec, cfg, manifest, root, output, end_update=None):
+def train(spec, cfg, manifest, root, output, end_update=None, audit_callback=None):
     perception, task = setup(cfg, output)
     method, seed, weight = spec["method"], spec["seed"], spec["lambda"]
     params = initialize(seed, cfg)
@@ -163,6 +163,8 @@ def train(spec, cfg, manifest, root, output, end_update=None):
             # Commit checkpoint last. A crash before it replays just this update and replaces its record.
             atomic_json(output / "updates" / f"{update + 1:05d}.json", record)
             save(output / "updates" / f"{update + 1:05d}.npz", params, optimizer, baseline)
+            if audit_callback is not None:
+                audit_callback(update + 1, images, rows, gradients)
             emit("train", method=method, seed=seed, cost_weight=weight, **record)
         save(output / "policy.npz", params, optimizer, baseline)
         atomic_json(
