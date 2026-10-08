@@ -7,7 +7,9 @@ export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUTF8=1 PYTHONUNBUFFERED=1 KERAS_BACKEND=jax
 export NVIDIA_TF32_OVERRIDE=0 XLA_PYTHON_CLIENT_PREALLOCATE=false
 export OMP_NUM_THREADS=4 TF_NUM_INTRAOP_THREADS=4 TF_NUM_INTEROP_THREADS=1
-export LD_LIBRARY_PATH="/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# JAX was installed with pip CUDA wheels. Keep system CUDA paths from shadowing
+# their cuSPARSE/cuDNN libraries; the NVIDIA driver remains available normally.
+unset LD_LIBRARY_PATH
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 action="${1:-start}"
 output="${2:-/root/autodl-tmp/outputs_casl/task_budget_ef_v1}"
