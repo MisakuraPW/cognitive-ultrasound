@@ -238,9 +238,14 @@ def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature,
         # an explicitly approximate estimator; AD's auxiliary primal can be
         # fused differently on GPU and is recorded separately, never used as video output.
         _, out = objective(params, 0.0)
-        (_, ad_out), task_gradient = jax.value_and_grad(lambda p: objective(p, 0.0), has_aux=True)(
-            params
-        )
+        if cfg["runtime"].get("gs_execution", "eager") == "jit":
+            (_, ad_out), task_gradient = compiled_gs_gradient(
+                params, c, g, perception, cfg, temperature, length
+            )
+        else:
+            (_, ad_out), task_gradient = jax.value_and_grad(lambda p: objective(p, 0.0), has_aux=True)(
+                params
+            )
         if not np.isfinite(np.asarray(ad_out)).all():
             raise FloatingPointError("Nonfinite AD linearization primal")
         gradient_primal_delta = max(
@@ -289,3 +294,24 @@ def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature,
         gradient_scope="local frame; temporal history, state features, ranking detached; "
         "zero-K2 direct-projection ST surrogate",
     )
+
+
+def compiled_gs_gradient(params, context, adjoint, perception, cfg, temperature, length):
+    """Two cached signatures; observations/history/noise stay dynamic, never stale constants."""
+    kernels = getattr(perception, "_gs_kernels", None)
+    if kernels is None:
+        kernels = perception._gs_kernels = {}
+    second = bool(context["k2"])
+    if second not in kernels:
+        def operation(p, c, g, t, n):
+            c = dict(c, k2=int(second))
+            return jax.value_and_grad(
+                lambda q: gs_local_objective(q, c, g, perception, cfg, t, 0.0, n),
+                has_aux=True,
+            )(p)
+
+        kernels[second] = jax.jit(operation)
+    fields = ("state0", "state1", "legal0", "legal1", "noise0", "noise1", "action0",
+              "action1", "bank0", "bank1", "target", "history", "masks", "previous", "key0", "key1")
+    values = {k: jnp.asarray(context[k]) for k in fields}
+    return kernels[second](params, values, jnp.asarray(adjoint), jnp.asarray(temperature), jnp.asarray(length))

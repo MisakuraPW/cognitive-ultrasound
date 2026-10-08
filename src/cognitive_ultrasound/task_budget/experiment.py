@@ -71,7 +71,7 @@ def probe(cfg, manifest, root, output):
         task.close()
 
 
-def train(spec, cfg, manifest, root, output):
+def train(spec, cfg, manifest, root, output, end_update=None):
     perception, task = setup(cfg, output)
     method, seed, weight = spec["method"], spec["seed"], spec["lambda"]
     params = initialize(seed, cfg)
@@ -81,7 +81,8 @@ def train(spec, cfg, manifest, root, output):
         params, optimizer, baseline = restore(completed[-1])
     start_update = optimizer["step"]
     try:
-        for update in range(start_update, cfg["training"]["updates"]):
+        final_update = cfg["training"]["updates"] if end_update is None else min(end_update, cfg["training"]["updates"])
+        for update in range(start_update, final_update):
             check_stop(root)
             start = time.perf_counter()
             # Global update-index RNG makes resumed and uninterrupted data/action streams identical.
@@ -232,13 +233,17 @@ def full_reference(cfg, task, root, name, frames):
 
 
 def evaluate(spec, cfg, manifest, root, output):
+    if cfg["runtime"].get("evaluation_workers", 1) > 1 and "_case_names" not in spec:
+        from .parallel import evaluate_parallel
+
+        return evaluate_parallel(spec, cfg, manifest, root, output)
     perception, task = setup(cfg, output)
     params = (
         initialize(spec["seed"], cfg) if spec["method"] == "E0" else restore(spec["checkpoint"])[0]
     )
     records = []
     try:
-        for name in manifest["cohorts"][spec["cohort"]]:
+        for name in spec.get("_case_names", manifest["cohorts"][spec["cohort"]]):
             check_stop(root)
             directory = output / Path(name).stem
             result_file = directory / "complete.json"
@@ -246,7 +251,7 @@ def evaluate(spec, cfg, manifest, root, output):
                 records.append(read_json(result_file))
                 continue
             start = time.perf_counter()
-            frames = read_episode(cfg, manifest, name)
+            frames = read_episode(cfg, manifest, name, count=spec.get("_calibration_frames"))
             io_s = time.perf_counter() - start
             start = time.perf_counter()
             seed = case_seed(spec["seed"], name)
@@ -331,6 +336,8 @@ def evaluate(spec, cfg, manifest, root, output):
                 )
                 atomic_json(directory / "matched_trajectory.json", matched_rows)
             atomic_json(directory / "trajectory.json", rows)
+            if spec.get("_calibration_save_full"):
+                atomic_npz(directory / "calibration_images.npz", images=images)
             atomic_npz(
                 directory / "snapshots.npz",
                 indices=np.array([0, len(images) // 2, len(images) - 1]),

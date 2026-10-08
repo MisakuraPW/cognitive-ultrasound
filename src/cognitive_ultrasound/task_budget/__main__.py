@@ -27,18 +27,22 @@ def main():
     parser.add_argument("--config", default="configs/task_budget_ef.yaml")
     parser.add_argument("--output", required=True)
     parser.add_argument("--task")
+    parser.add_argument("--worker-output")
     args = parser.parse_args()
     root = Path(args.output).resolve()
     if args.action == "worker":
         from .experiment import worker
 
         spec = read_json(args.task)
+        worker_output = Path(args.worker_output).resolve() if args.worker_output else root / "jobs" / spec["id"]
+        if not worker_output.is_relative_to(root):
+            raise ValueError("Worker output must stay inside its batch directory")
         worker(
             spec,
             read_json(root / "config.json"),
             read_json(root / "manifest.json"),
             root,
-            root / "jobs" / spec["id"],
+            worker_output,
         )
     elif args.action == "status":
         import json

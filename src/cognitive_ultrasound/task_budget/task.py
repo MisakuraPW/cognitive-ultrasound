@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import time
+import shutil
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -11,12 +13,19 @@ import numpy as np
 from ..config import ROOT
 from ..preparation.common import atomic_json, atomic_npz
 from .protocol import causal_window, clip_indices, task_scores
+from .exchange import write_exchange
 
 
 class EFService:
     def __init__(self, cfg, root, coordinates):
         self.cfg, self.directory = cfg, root / ".ipc"
         self.directory.mkdir(parents=True, exist_ok=True)
+        self.ipc_mode = cfg["runtime"].get("ipc_mode", "compressed")
+        self.exchange_directory = self.directory
+        if self.ipc_mode == "tmpfs":
+            if not os.path.isdir("/dev/shm"):
+                raise RuntimeError("tmpfs IPC requested but /dev/shm unavailable")
+            self.exchange_directory = type(self.directory)(tempfile.mkdtemp(prefix="casl-ef-", dir="/dev/shm"))
         self.config_file = self.directory / "config.json"
         atomic_json(self.config_file, cfg)
         atomic_npz(self.directory / "coordinates.npz", coordinates=coordinates)
@@ -70,13 +79,14 @@ class EFService:
 
     def request(self, clips, gradient=False, domain="polar"):
         start = time.perf_counter()
-        atomic_npz(self.directory / "input.npz", clips=np.asarray(clips, np.float32))
+        write_exchange(self.exchange_directory / "input.npz", dict(clips=np.asarray(clips, np.float32)), self.ipc_mode)
         self.process.stdin.write(
             json.dumps(
                 dict(
                     op="evaluate",
-                    input=str(self.directory / "input.npz"),
-                    output=str(self.directory / "output.npz"),
+                    input=str(self.exchange_directory / "input.npz"),
+                    output=str(self.exchange_directory / "output.npz"),
+                    ipc_mode=self.ipc_mode,
                     gradient=gradient,
                     domain=domain,
                 )
@@ -85,7 +95,7 @@ class EFService:
         )
         self.process.stdin.flush()
         self._line()
-        with np.load(self.directory / "output.npz", allow_pickle=False) as data:
+        with np.load(self.exchange_directory / "output.npz", allow_pickle=False) as data:
             result = {k: data[k].copy() for k in data.files}
         self.calls += 1
         self.seconds += time.perf_counter() - start
@@ -133,5 +143,7 @@ class EFService:
             self.process.stdout.close()
         if hasattr(self, "pool"):
             self.pool.shutdown(wait=False, cancel_futures=True)
+        if getattr(self, "ipc_mode", "") == "tmpfs":
+            shutil.rmtree(self.exchange_directory, ignore_errors=True)
         if hasattr(self, "log"):
             self.log.close()

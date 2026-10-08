@@ -14,6 +14,7 @@ import numpy as np
 
 from ..preparation.common import atomic_json, atomic_npz, read_json
 from ..provenance import sha256
+from .exchange import write_exchange
 
 WEIGHTS_URL = (
     "https://github.com/douyang/EchoNetDynamic/releases/download/v1.0.0/"
@@ -143,6 +144,14 @@ class EFModel:
         self.model = model.to(self.device).eval()
         for parameter in self.model.parameters():
             parameter.requires_grad_(False)
+        execution = cfg["runtime"].get("ef_execution", "eager")
+        if execution == "compile":
+            import torch._inductor.config as compiler_config
+
+            compiler_config.compile_threads = 1
+            self.model = torch.compile(self.model, fullgraph=True, dynamic=False)
+        elif execution != "eager":
+            raise ValueError("Unknown EF execution mode: " + execution)
         stats = read_json(cfg["ef_stats"])
         if stats["units"] != "uint8_0_255_RGB":
             raise ValueError("Unknown normalization units")
@@ -258,7 +267,7 @@ def serve(cfg, coordinates):
                 break
             with np.load(request["input"], allow_pickle=False) as data:
                 result = evaluator.evaluate(data["clips"], request["gradient"], request["domain"])
-            atomic_npz(request["output"], **result)
+            write_exchange(request["output"], result, request.get("ipc_mode", "compressed"))
             print('{"done":true}', flush=True)
         except Exception as error:
             traceback.print_exc(file=sys.stderr)
