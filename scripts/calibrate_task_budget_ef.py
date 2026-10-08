@@ -27,7 +27,7 @@ def compare(a, b):
         ok = valid and np.allclose(x, y, atol=2e-4, rtol=2e-4)
         passed = passed and bool(ok)
         bitwise = bitwise and valid and x.dtype == y.dtype and x.tobytes() == y.tobytes()
-        deltas[key] = float(np.max(np.abs(x-y))) if valid and x.size else None
+        deltas[key] = float(np.max(np.abs(x.astype(np.float64)-y.astype(np.float64)))) if valid and x.size else None
     return dict(passed=passed, bitwise=bitwise, max_abs=deltas, atol=2e-4, rtol=2e-4)
 
 
