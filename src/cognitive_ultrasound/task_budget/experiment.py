@@ -202,13 +202,14 @@ def balanced_schedule(total, frames, pairs, initial):
     ]
 
 
-def full_reference(cfg, task, root, name, frames):
+def full_reference(cfg, task, root, name, frames, frame_limit=None):
     import cv2
 
     from ..provenance import sha256
 
     raw = Path(cfg["raw_videos"]) / (Path(name).stem + ".avi")
-    file = root / ".cache" / "full_ef_reference" / f"{Path(name).stem}.json"
+    suffix = "" if frame_limit is None else f".prefix{frame_limit}"
+    file = root / ".cache" / "full_ef_reference" / f"{Path(name).stem}{suffix}.json"
     raw_hash = sha256(raw)
     if file.exists():
         value = read_json(file)
@@ -223,6 +224,8 @@ def full_reference(cfg, task, root, name, frames):
         if not ok:
             break
         originals.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if frame_limit is not None and len(originals) == frame_limit:
+            break
     cap.release()
     if len(originals) != len(frames) or any(x.shape != (112, 112, 3) for x in originals):
         raise ValueError("Original/polar time indices or input geometry differ")
@@ -271,7 +274,7 @@ def evaluate(spec, cfg, manifest, root, output):
             final_task_s = time.perf_counter() - task_start
             computation_s = time.perf_counter() - start
             reference_start = time.perf_counter()
-            reference = full_reference(cfg, task, root, name, frames)
+            reference = full_reference(cfg, task, root, name, frames, frame_limit=spec.get("_calibration_frames"))
             full = reference["full_polar_ef"]
             truth = manifest["files"][name]["ef"]
             record = dict(
