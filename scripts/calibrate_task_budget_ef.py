@@ -26,7 +26,7 @@ def compare(a, b):
         valid = x.shape == y.shape and np.isfinite(x).all() and np.isfinite(y).all()
         ok = valid and np.allclose(x, y, atol=2e-4, rtol=2e-4)
         passed = passed and bool(ok)
-        bitwise = bitwise and valid and np.array_equal(x, y)
+        bitwise = bitwise and valid and x.dtype == y.dtype and x.tobytes() == y.tobytes()
         deltas[key] = float(np.max(np.abs(x-y))) if valid and x.size else None
     return dict(passed=passed, bitwise=bitwise, max_abs=deltas, atol=2e-4, rtol=2e-4)
 
@@ -231,6 +231,15 @@ def coordinate(args):
     if process_alive(state.get("pid"),state.get("created")) or process_alive(state.get("worker_pid"),state.get("worker_created")):
         raise RuntimeError("Pause research batch before calibration; no timing under competing research jobs")
     args.output.mkdir(parents=True,exist_ok=True)
+    from cognitive_ultrasound.hardware import snapshot
+    from cognitive_ultrasound.config import ROOT
+    fingerprint=dict(hardware=snapshot(),source_identity=sha256(args.source/"identity.json"),
+                     source_files={str(p.relative_to(ROOT)):sha256(p) for p in sorted((ROOT/"src/cognitive_ultrasound/task_budget").glob("*.py"))},
+                     environment={k:os.environ.get(k) for k in ("LD_LIBRARY_PATH","NVIDIA_TF32_OVERRIDE","CUBLAS_WORKSPACE_CONFIG")})
+    cache_file=args.output/"calibration_cache_identity.json"
+    if cache_file.exists() and read_json(cache_file)!=fingerprint:
+        raise RuntimeError("Hardware/source/environment changed: use a new calibration output directory")
+    atomic_json(cache_file,fingerprint)
     atomic_json(args.output/"identity.json",dict(source=str(args.source),source_identity=sha256(args.source/"identity.json"),
                 commit=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
                 scientific_config=cfg, decision="user decides after report; never auto resumes"))

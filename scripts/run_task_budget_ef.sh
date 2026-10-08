@@ -14,6 +14,20 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8
 action="${1:-start}"
 output="${2:-/root/autodl-tmp/outputs_casl/task_budget_ef_v1}"
 config="${TASK_BUDGET_CONFIG:-configs/task_budget_ef.yaml}"
+if [[ "$action" == optimize ]]; then
+  source_output="${TASK_BUDGET_SOURCE:-/root/autodl-tmp/outputs_casl/task_budget_ef_v2}"
+  output="${2:-/root/autodl-tmp/outputs_casl/task_budget_engineering_v1}"
+  mkdir -p "$(dirname "$output")"
+  nohup python -u scripts/calibrate_task_budget_ef.py --source "$source_output" --output "$output" \
+    >>"$output.console.log" 2>&1 < /dev/null &
+  printf 'Engineering calibration PID: %s\nLog: %s.console.log\nResearch batch is NOT resumed.\n' "$!" "$output"
+  exit 0
+fi
+if [[ "$action" == optimize-report ]]; then
+  output="${2:-/root/autodl-tmp/outputs_casl/task_budget_engineering_v1}"
+  python scripts/report_task_budget_engineering.py --output "$output"
+  exit 0
+fi
 if [[ "$action" == start || "$action" == resume ]]; then
   mkdir -p "$(dirname "$output")"
   command=run
