@@ -11,6 +11,20 @@ from .policy import draw, st_weights
 from .protocol import Observation, greedy_order, mask_bank, state_features
 
 
+@jax.custom_jvp
+def projected_observation(image, target, mask):
+    return jnp.where(mask != 0, target, image)
+
+
+@projected_observation.defjvp
+def projected_jvp(primals, tangents):
+    image, target, mask = primals
+    di, dt, dm = tangents
+    return projected_observation(image, target, mask), (1 - mask) * di + mask * dt + (
+        target - image
+    ) * dm
+
+
 def rollout(
     cfg,
     perception,
@@ -190,15 +204,15 @@ def gs_local_objective(params, context, adjoint, perception, cfg, temperature, c
     m = jnp.concatenate([jnp.asarray(c["masks"])[..., 1:], mask0[..., None]], axis=-1)
     infer = getattr(perception, "infer_for_replay", perception.infer)
     samples = infer(h, m, c["previous"], c["key0"])
-    middle = samples[0, ..., -1] * (1 - mask0) + target * mask0
+    middle = projected_observation(samples[0, ..., -1], target, mask0)
     if c["k2"]:
         full_mask = mask0 + mask2
         h = h.at[..., -1].set(full_mask * target)
         m = m.at[..., -1].set(full_mask)
         samples = infer(h, m, samples, c["key1"])
-        output = samples[0, ..., -1] * (1 - full_mask) + target * full_mask
+        output = projected_observation(samples[0, ..., -1], target, full_mask)
     else:
-        output = middle + mask2 * (target - middle)
+        output = projected_observation(middle, target, mask2)
     task_term = jnp.sum(output * adjoint)
     cost = (
         w0 @ jnp.asarray(cfg["budgets"]["first"]) + w1 @ jnp.asarray(cfg["budgets"]["second"])

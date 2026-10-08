@@ -49,8 +49,21 @@ def st_weights(params, state, legal, noise, action, temperature):
         (jnp.where(jnp.asarray(legal), logits(params, state), -1e9) + noise) / temperature
     )
     hard = jax.nn.one_hot(action, len(legal))
-    # Parenthesized difference keeps forward masks exactly binary.
-    return hard + (soft - jax.lax.stop_gradient(soft))
+    # Do not implement ST with cancelling floating additions: XLA may reassociate
+    # them under AD. The physical forward must remain exactly one-hot.
+    return hard_forward_soft_jvp(hard, soft)
+
+
+@jax.custom_jvp
+def hard_forward_soft_jvp(hard, soft):
+    return hard
+
+
+@hard_forward_soft_jvp.defjvp
+def hard_soft_jvp(primals, tangents):
+    hard, _ = primals
+    _, soft_tangent = tangents
+    return hard, soft_tangent
 
 
 def rl_loss(params, contexts, advantage):

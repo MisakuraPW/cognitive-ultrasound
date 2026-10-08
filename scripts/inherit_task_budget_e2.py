@@ -18,6 +18,7 @@ from cognitive_ultrasound.task_budget.suite import identity, process_alive
 BASE = "a8f4d26"
 EPISODE = "src/cognitive_ultrasound/task_budget/episode.py"
 PERCEPTION = "src/cognitive_ultrasound/task_budget/perception.py"
+POLICY = "src/cognitive_ultrasound/task_budget/policy.py"
 
 
 def base_source(path):
@@ -36,7 +37,7 @@ def audit_e2_source(old_identity):
     for path, digest in old_identity["source"].items():
         if hashlib.sha256(base_source(path)).hexdigest() != digest:
             raise ValueError(f"Unreviewed source snapshot: {path}")
-        if path not in (EPISODE, PERCEPTION) and sha256(ROOT / path) != digest:
+        if path not in (EPISODE, PERCEPTION, POLICY) and sha256(ROOT / path) != digest:
             raise ValueError(f"E2 dependency changed: {path}")
     old = tree(base_source(EPISODE).decode(), "rollout")
     new = tree((ROOT / EPISODE).read_text(), "rollout")
@@ -86,6 +87,10 @@ def audit_e2_source(old_identity):
     init.body.remove(additions[0])
     if not same(old_class, new_class):
         raise ValueError("Normal CASL perception changed")
+    for node in ast.parse(base_source(POLICY).decode()).body:
+        if isinstance(node, ast.FunctionDef) and node.name != "st_weights":
+            if not same(node, tree((ROOT / POLICY).read_text(), node.name)):
+                raise ValueError("Non-GS policy computation changed: " + node.name)
     return dict(
         reviewed_base=BASE,
         normal_perception_ast_identical=True,
