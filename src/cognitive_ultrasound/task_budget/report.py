@@ -94,16 +94,22 @@ def report(root):
             label = (
                 "fixed" + str(job["fixed"]) if job["method"] == "E0" else f"lambda={job['lambda']}"
             )
+            if "checkpoint_update" in job:
+                label+=f",updates={job['checkpoint_update']}"
             groups[(job["method"], label, job["cohort"])].extend(value["records"])
     summaries = []
     for (method, label, cohort), records in sorted(groups.items()):
         summary = summarize(records)
+        expected_cases=len(manifest["cohorts"][cohort])
+        if cfg.get("execution",{}).get("repair_milestones") and cohort=="development" and "updates=" in label:
+            update=int(label.split("updates=")[-1])
+            if update<cfg["training"]["updates"]:expected_cases=4
         summary.update(
             method=method,
             working_point=label,
             cohort=cohort,
-            complete=summary["cases"] == len(manifest["cohorts"][cohort])
-            and summary["observations"] == len(manifest["cohorts"][cohort]) * len(cfg["seeds"]),
+            complete=summary["cases"] == expected_cases
+            and summary["observations"] == expected_cases * len(cfg["seeds"]),
         )
         summaries.append(summary)
     atomic_json(
@@ -157,7 +163,7 @@ def report(root):
         "E0 fixed, E1 straight-through Gumbel-Softmax, E2 REINFORCE. Frozen CASL and EF weights.",
         "Only completed records are summarized; missing/failed jobs remain in the ledger.",
         "No multitask training or segmentation evaluation in this batch.",
-        "GS gradients are local-frame VJPs; cross-frame history, state features and line rankings are detached.",
+        "GS estimator: "+cfg["training"]["gs_gradient"]+"; approximate estimator, not a convergence guarantee.",
         "For K2=0, GS uses a direct-projection backward surrogate and no extra DPS.",
         "Speed: preloaded video acquisition plus EF inference; full-input reference evaluation excluded.",
         "Normalization/scanning conversion and pretrained split assumptions are in manifest/identity/EF runtime.",
@@ -167,6 +173,9 @@ def report(root):
     ]
     if cfg.get("functional_fixture", False):
         lines.insert(2, "FUNCTIONAL SYNTHETIC FIXTURE — no scientific outcome.")
+    if cfg.get("execution",{}).get("repair_milestones"):
+        lines.insert(2,"Repair version: frozen TRAIN-only input scales; E1 bounded local-projection GS surrogate; E2 action-independent full-input reward reference and fixed score scaling. Historical E1 weights were not resumed.")
+        lines.insert(3,"Compatible E0 quality records may be inherited. Their original timings retain their original runtime; mixed-version times cannot establish a budget-policy speedup.")
     for r in summaries:
         lines.append(
             f"|{r['method']}|{r['working_point']}|{r['cohort']}|{r['complete']}|{r['cases']}|"

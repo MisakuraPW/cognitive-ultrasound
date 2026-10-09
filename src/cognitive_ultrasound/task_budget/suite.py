@@ -121,6 +121,9 @@ def terminate_owned_worker(status):
 
 
 def jobs(cfg):
+    if cfg.get("execution",{}).get("repair_milestones"):
+        from .repair import repair_jobs
+        return repair_jobs(cfg)
     specs = [dict(id="probe", kind="probe")]
     for seed in cfg["seeds"]:
         for pair in cfg["budgets"]["fixed_sweep"]:
@@ -170,6 +173,8 @@ def run(cfg, root, action="run", phase="all"):
             raise RuntimeError("Stopped batch; explicitly use resume")
         emit("STAGE", job="assets_and_manifest")
         manifest = prepare(cfg, root)
+        if cfg.get("feature_calibration") and "feature_scales" not in cfg:
+            raise ValueError("Prepare frozen TRAIN-only feature scales before launching repaired training")
         current = identity(cfg, manifest)
         ident = root / "identity.json"
         if ident.exists() and read_json(ident) != current:
@@ -251,6 +256,16 @@ def run(cfg, root, action="run", phase="all"):
                         state["failures"].append(spec["id"])
                         continue
                     spec = dict(spec, checkpoint=str(parent / "policy.npz"))
+                if spec.get("resume_parent"):
+                    previous=root/"jobs"/spec["resume_parent"]
+                    if not (previous/"result.json").exists() or read_json(previous/"result.json").get("status")!="completed":
+                        raise RuntimeError("Previous training milestone failed; do not restart from scratch")
+                    prior=read_json(previous/"result.json")
+                    if prior.get("method")!=spec["method"] or prior.get("seed")!=spec["seed"] or prior.get("cost_weight")!=spec["lambda"] or prior["updates"]>=spec["end_update"]:
+                        raise ValueError("Incompatible training milestone checkpoint")
+                    spec=dict(spec,resume_checkpoint=str(previous/"policy.npz"))
+                if spec.get("case_limit"):
+                    spec=dict(spec,_case_names=manifest["cohorts"][spec["cohort"]][:spec["case_limit"]])
                 if shutil.disk_usage(root).free < cfg["runtime"]["min_free_gib"] * 2**30:
                     raise RuntimeError("Insufficient storage reserve")
                 directory.mkdir(parents=True, exist_ok=True)
@@ -333,6 +348,13 @@ def run(cfg, root, action="run", phase="all"):
                     seconds=time.perf_counter() - start,
                 )
                 atomic_json(root / "status.json", state)
+                if cfg.get("execution",{}).get("repair_milestones"):
+                    if spec["id"]=="probe" and read_json(result).get("gs_status")!="passed":
+                        raise RuntimeError("Repair GPU task-gradient gate failed; stop before policy training")
+                    from .report import report
+                    report(root)
+                    if read_json(result).get("status")!="completed":
+                        raise RuntimeError("Repaired worker failed; preserve checkpoints and stop this batch")
             else:
                 state["status"] = "completed" if not state["failures"] else "finished_with_gaps"
             if state["status"] == "running":

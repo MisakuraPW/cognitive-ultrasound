@@ -1,0 +1,13 @@
+extends: task_budget_ef_staged.yaml
+seeds: [42]
+training:
+  updates: 200
+  lambdas: [2.0]
+  learning_rate: 0.003
+  gradient_clip: 5.0
+  temperature_updates: 50
+  gs_gradient: local_projection_v2
+  rl_reference: full_input
+  rl_score_scale: fixed_decisions
+execution:
+  repair_milestones: [50, 100, 200]

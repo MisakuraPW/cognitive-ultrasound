@@ -48,8 +48,16 @@ def configuration(file):
         raise ValueError("Pinned EF checkpoint requires32 frames, period2")
     if cfg["task"]["score"] != "official_tbig_mean_gradient_squared":
         raise ValueError("This batch implements the declared official TBIG code convention only")
-    if cfg["training"]["gs_gradient"] != "local_frame_vjp":
+    if cfg["training"]["gs_gradient"] not in ("local_frame_vjp","local_projection_v2"):
         raise ValueError("Unsupported GS estimator")
+    if "feature_scales" in cfg:
+        scales=np.asarray(cfg["feature_scales"])
+        if scales.shape!=(12,) or not np.isfinite(scales).all() or (scales<=0).any():
+            raise ValueError("Invalid frozen training feature calibration")
+    milestones=cfg.get("execution",{}).get("repair_milestones")
+    if milestones:
+        if len(cfg["seeds"])!=1 or len(cfg["training"]["lambdas"])!=1 or milestones!=sorted(set(milestones)) or milestones[-1]!=cfg["training"]["updates"] or any(type(n)is not int or n<1 for n in milestones):
+            raise ValueError("Repair requires one point and ascending milestones ending at the training budget")
     if not 0 < cfg["training"]["temperature_end"] <= cfg["training"]["temperature_start"]:
         raise ValueError("Invalid GS temperatures")
     if (

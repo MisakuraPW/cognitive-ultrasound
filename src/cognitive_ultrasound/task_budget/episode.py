@@ -63,7 +63,8 @@ def rollout(
         score0_s = time.perf_counter() - saliency_start
         decision_start = time.perf_counter()
         state0 = state_features(
-            particles, old_image, scores0, values0, history_length=index, last_budget=last_budget
+            particles, old_image, scores0, values0, history_length=index, last_budget=last_budget,
+            feature_scales=cfg.get("feature_scales"),
         )
         first = cfg["budgets"]["first"]
         legal0 = np.ones(len(first), bool)
@@ -102,6 +103,7 @@ def rollout(
             mask1,
             index,
             last_budget,
+            feature_scales=cfg.get("feature_scales"),
         )
         second = cfg["budgets"]["second"]
         legal1 = np.array([k1 + k <= cfg["budgets"]["maximum"] for k in second])
@@ -150,6 +152,7 @@ def rollout(
                 k1=k1,
                 k2=k2,
                 prediction=prediction,
+                raw_prediction=final_samples[0, ..., -1].copy(),
             )
         )
         rows.append(
@@ -221,6 +224,8 @@ def gs_local_objective(params, context, adjoint, perception, cfg, temperature, c
 
 
 def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature, cost_weight):
+    if cfg["training"]["gs_gradient"] == "local_projection_v2":
+        return projection_gradient(params, contexts, image_gradients, cfg, temperature, cost_weight)
     total = jax.tree_util.tree_map(jnp.zeros_like, params)
     task_total = jax.tree_util.tree_map(jnp.zeros_like, params)
     max_replay = 0.0
@@ -320,3 +325,44 @@ def compiled_gs_gradient(params, context, adjoint, perception, cfg, temperature,
               "action1", "bank0", "bank1", "target", "history", "masks", "previous", "key0", "key1")
     values = {k: jnp.asarray(context[k]) for k in fields}
     return kernels[second](params, values, jnp.asarray(adjoint), jnp.asarray(temperature), jnp.asarray(length))
+
+
+def projection_objective(params, context, adjoint, cfg, temperature, cost_weight, length):
+    """Explicit bounded local surrogate, not an exact derivative through posterior sampling.
+
+    Actual hard forward is the already executed image. The backward models only
+    observation projection; DPS input gradients still run during actual acquisition.
+    """
+    c=context
+    w0=st_weights(params["first"],c["state0"],c["legal0"],c["noise0"],c["action0"],temperature)
+    w1=st_weights(params["second"],c["state1"],c["legal1"],c["noise1"],c["action1"],temperature)
+    first=w0@c["bank0"];second=w1@c["bank1"]
+    mask=jnp.broadcast_to(first+(1-first)*second,(112,112))
+    reference=jnp.broadcast_to(jnp.asarray(c["bank0"])[c["action0"]]+jnp.asarray(c["bank1"])[c["action1"]],(112,112))
+    innovation=jax.lax.stop_gradient(jnp.asarray(c["target"])-jnp.clip(jnp.asarray(c["raw_prediction"]),-1,1))
+    image=jax.lax.stop_gradient(jnp.asarray(c["prediction"]))+(mask-reference)*innovation
+    cost=(w0@jnp.asarray(cfg["budgets"]["first"])+w1@jnp.asarray(cfg["budgets"]["second"]))/(112*length)
+    return jnp.sum(image*adjoint)+cost_weight*cost,image
+
+
+def projection_gradient(params, contexts, image_gradients, cfg, temperature, cost_weight):
+    total=jax.tree_util.tree_map(jnp.zeros_like,params)
+    task_total=jax.tree_util.tree_map(jnp.zeros_like,params)
+    max_delta=0.;started=time.perf_counter()
+    for c,g in zip(contexts,image_gradients):
+        if c["cold"]:continue
+        f=lambda p:projection_objective(p,c,g,cfg,temperature,0.,len(contexts))
+        (_,image),task_grad=jax.value_and_grad(f,has_aux=True)(params)
+        _,cost_grad=jax.value_and_grad(lambda p:projection_objective(p,c,jnp.zeros_like(g),cfg,temperature,cost_weight,len(contexts))[0])(params)
+        max_delta=max(max_delta,float(np.max(np.abs(np.asarray(image)-c["prediction"]))))
+        for x in jax.tree_util.tree_leaves((task_grad,cost_grad)):
+            if not np.isfinite(np.asarray(x)).all():raise FloatingPointError("Nonfinite projection surrogate gradient")
+        total=jax.tree_util.tree_map(lambda a,b,d:a+b+d,total,task_grad,cost_grad)
+        task_total=jax.tree_util.tree_map(lambda a,b:a+b,task_total,task_grad)
+    if max_delta>2e-4:raise AssertionError("Projection surrogate changed actual hard forward")
+    norms={h:float(jnp.sqrt(sum(jnp.sum(x*x) for x in t.values()))) for h,t in task_total.items()}
+    if not all(np.isfinite(x) for x in norms.values()):raise FloatingPointError("Nonfinite projection gradient norm")
+    return total,dict(task_gradient_norms=norms,hard_replay_max_abs=max_delta,
+                     gradient_linearization_primal_max_abs=max_delta,gradient_estimator_approximate=True,
+                     backward_wall_s=time.perf_counter()-started,
+                     gradient_scope="local_projection_v2: cached actual image; bounded observation innovation; posterior/history/ranking detached")

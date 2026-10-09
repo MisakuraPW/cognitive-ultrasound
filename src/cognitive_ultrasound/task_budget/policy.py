@@ -66,7 +66,7 @@ def hard_soft_jvp(primals, tangents):
     return hard, soft_tangent
 
 
-def rl_loss(params, contexts, advantage):
+def rl_loss(params, contexts, advantage, score_scale=1.0):
     terms = []
     for c in contexts:
         if c["cold"]:
@@ -74,7 +74,7 @@ def rl_loss(params, contexts, advantage):
         for head, index in (("first", 0), ("second", 1)):
             p = probabilities(params[head], c[f"state{index}"], c[f"legal{index}"])
             terms.append(jnp.log(jnp.maximum(p[c[f"action{index}"]], 1e-20)))
-    return -jax.lax.stop_gradient(jnp.asarray(advantage)) * jnp.sum(jnp.stack(terms))
+    return -jax.lax.stop_gradient(jnp.asarray(advantage)) * jnp.sum(jnp.stack(terms))/score_scale
 
 
 def adam_state(params):
@@ -87,6 +87,8 @@ def adam(params, gradients, state, cfg):
     if not all(np.isfinite(np.asarray(g)).all() for g in arrays):
         raise FloatingPointError("Nonfinite budget-policy gradient")
     norm = jnp.sqrt(sum(jnp.sum(g * g) for g in arrays))
+    if not np.isfinite(float(norm)):
+        raise FloatingPointError("Nonfinite aggregate gradient norm; reject optimizer update")
     scale = jnp.minimum(1.0, cfg["training"]["gradient_clip"] / (norm + 1e-12))
     gradients = jax.tree_util.tree_map(lambda g: g * scale, gradients)
     step = state["step"] + 1

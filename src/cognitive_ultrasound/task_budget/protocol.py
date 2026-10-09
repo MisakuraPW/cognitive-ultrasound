@@ -28,6 +28,7 @@ def state_features(
     history_length=0,
     last_budget=0,
     clip_span=63,
+    feature_scales=None,
 ):
     variance = np.var(particles, axis=0)
     image = np.asarray(particles)[0]
@@ -51,7 +52,16 @@ def state_features(
     if not np.isfinite(result).all():
         raise FloatingPointError("Nonfinite observable state")
     # Fixed transform, not normalization fitted with future/confirmation cases.
-    return np.sign(result) * np.log1p(np.abs(result))
+    transformed = np.sign(result) * np.log1p(np.abs(result))
+    if feature_scales is not None:
+        scale = np.asarray(feature_scales, np.float32)
+        if scale.shape != transformed.shape or not np.isfinite(scale).all() or (scale <= 0).any():
+            raise ValueError("Feature scales must be12 positive finite training-only values")
+        # Compress unusually large values, while lifting small task-sensitivity inputs to usable units.
+        value = transformed.astype(np.float64) / scale.astype(np.float64)
+        transformed = (np.sign(value) * np.log1p(np.abs(value))).astype(np.float32)
+        if not np.isfinite(transformed).all():raise FloatingPointError("Nonfinite normalized state")
+    return transformed
 
 
 def task_scores(particles, gradients):

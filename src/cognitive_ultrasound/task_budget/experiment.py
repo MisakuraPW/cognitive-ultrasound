@@ -11,7 +11,7 @@ from ..preparation.common import atomic_json, atomic_npz, emit, read_json
 from .data import read_episode
 from .episode import gs_gradient, rollout
 from .perception import CASLPerception
-from .policy import adam, adam_state, initialize, restore, rl_loss, save
+from .policy import adam, adam_state, initialize, restore, rl_loss, save, probabilities
 from .task import EFService
 
 
@@ -81,6 +81,10 @@ def train(spec, cfg, manifest, root, output, end_update=None, audit_callback=Non
         params, optimizer, baseline = restore(completed[-1])
     start_update = optimizer["step"]
     try:
+        if spec.get("resume_checkpoint") and not completed:
+            source=Path(spec["resume_checkpoint"])
+            params,optimizer,baseline=restore(source)
+            start_update=optimizer["step"]
         final_update = cfg["training"]["updates"] if end_update is None else min(end_update, cfg["training"]["updates"])
         for update in range(start_update, final_update):
             check_stop(root)
@@ -111,10 +115,10 @@ def train(spec, cfg, manifest, root, output, end_update=None, audit_callback=Non
             objective = task_loss + weight * acquisition
             diagnostics = {}
             if method == "E1":
-                span = max(1, cfg["training"]["updates"] - 1)
+                span = max(1, cfg["training"].get("temperature_updates",cfg["training"]["updates"]) - 1)
                 temperature = cfg["training"]["temperature_start"] * (
                     cfg["training"]["temperature_end"] / cfg["training"]["temperature_start"]
-                ) ** (update / span)
+                ) ** (min(update,span) / span)
                 gradients, diagnostics = gs_gradient(
                     params,
                     contexts,
@@ -131,17 +135,30 @@ def train(spec, cfg, manifest, root, output, end_update=None, audit_callback=Non
                 ):
                     raise RuntimeError("GS task gradients absent; do not train cost-only fallback")
             elif method == "E2":
-                reward = -objective
+                reference_error=0.0
+                if cfg["training"].get("rl_reference")=="full_input":
+                    reference_prediction,_,_=task.video(frames)
+                    reference_error=abs(reference_prediction-truth)
+                reward = -objective+reference_error
                 # Baseline contains previous episodes only, so current reward is not subtracted from itself.
                 advantage = reward - baseline
-                gradients = jax.grad(rl_loss)(params, contexts, advantage)
+                scale=2*(cfg["training"]["clip_frames"]-1) if cfg["training"].get("rl_score_scale")=="fixed_decisions" else 1.0
+                gradients = jax.grad(rl_loss)(params, contexts, advantage,scale)
                 baseline = (
                     cfg["training"]["rl_baseline_decay"] * baseline
                     + (1 - cfg["training"]["rl_baseline_decay"]) * reward
                 )
-                diagnostics = dict(reward=reward, advantage=advantage, baseline=baseline)
+                diagnostics = dict(reward=reward, advantage=advantage, baseline=baseline,
+                                   reference_error=reference_error,score_scale=scale,
+                                   baseline_scope="full-input action-independent reference plus past-excess EMA" if cfg["training"].get("rl_reference")=="full_input" else "EMA of previous episode rewards")
             else:
                 raise ValueError("Training only E1/E2")
+            policy_stats={}
+            if cfg.get("execution",{}).get("repair_milestones"):
+                for i,head in enumerate(("first","second")):
+                    values=np.stack([np.asarray(probabilities(params[head],c[f"state{i}"],c[f"legal{i}"])) for c in contexts if not c["cold"]])
+                    policy_stats[head]=dict(mean_max_probability=float(values.max(1).mean()),
+                                           mean_entropy=float(-(values*np.log(values+1e-20)).sum(1).mean()))
             params, optimizer, norm = adam(params, gradients, optimizer, cfg)
             record = dict(
                 update=update + 1,
@@ -159,6 +176,8 @@ def train(spec, cfg, manifest, root, output, end_update=None, audit_callback=Non
                 zero_second_fraction=np.mean([r["k2"] == 0 for r in rows]),
                 seconds=time.perf_counter() - start,
                 **diagnostics,
+                policy_stats=policy_stats,
+                gradient_clipped=norm>cfg["training"]["gradient_clip"],
             )
             # Commit checkpoint last. A crash before it replays just this update and replaces its record.
             atomic_json(output / "updates" / f"{update + 1:05d}.json", record)
@@ -244,7 +263,7 @@ def evaluate(spec, cfg, manifest, root, output):
         return evaluate_parallel(spec, cfg, manifest, root, output)
     perception, task = setup(cfg, output)
     params = (
-        initialize(spec["seed"], cfg) if spec["method"] == "E0" else restore(spec["checkpoint"])[0]
+        initialize(spec["seed"], cfg) if spec["method"] == "E0" or spec.get("untrained") else restore(spec["checkpoint"])[0]
     )
     records = []
     try:
@@ -308,36 +327,40 @@ def evaluate(spec, cfg, manifest, root, output):
                 timing_scope="preloaded full-video acquisition/EF inference; diagnostic full-input EF excluded",
                 clip_predictions=clips,
             )
+            warm=[(r["k1"],r["k2"]) for r in rows[1:]]
+            record["warm_budget_pairs"]=sorted(set(warm))
+            record["budget_switch_rate"]=sum(a!=b for a,b in zip(warm,warm[1:]))/max(1,len(warm)-1)
             if spec["method"] != "E0":
-                schedule = balanced_schedule(
-                    record["total_lines"],
-                    len(frames),
-                    cfg["budgets"]["fixed_sweep"],
-                    cfg["budgets"]["fixed"],
-                )
+                if cfg.get("execution",{}).get("repair_milestones"):
+                    from .repair import joint_budget_schedule
+                    schedule=joint_budget_schedule(rows)
+                else:
+                    schedule = balanced_schedule(
+                        record["total_lines"],len(frames),cfg["budgets"]["fixed_sweep"],cfg["budgets"]["fixed"],
+                    )
                 t = time.perf_counter()
-                matched_images, matched_rows, _ = rollout(
-                    cfg,
-                    perception,
-                    task,
-                    frames,
-                    params,
-                    "E0",
-                    seed,
-                    fixed=schedule,
-                    progress=lambda i: check_stop(root),
-                )
-                matched_pred, _, _ = task.video(matched_images)
+                identical=all((r["k1"],r["k2"])==tuple(k) for r,k in zip(rows,schedule))
+                if identical:
+                    matched_rows=rows;matched_pred=pred
+                else:
+                    matched_images, matched_rows, _ = rollout(
+                        cfg,perception,task,frames,params,"E0",seed,fixed=schedule,
+                        progress=lambda i: check_stop(root),
+                    )
+                    matched_pred, _, _ = task.video(matched_images)
                 matched_total = sum(r["k1"] + r["k2"] for r in matched_rows)
                 record["matched"] = dict(
                     ef_prediction=matched_pred,
                     absolute_error=abs(matched_pred - truth),
                     total_lines=matched_total,
                     mean_lines=matched_total / len(frames),
-                    seconds=time.perf_counter() - t,
+                    seconds=None if identical else time.perf_counter() - t,
                     mean_line_mismatch=abs(matched_total - record["total_lines"]) / len(frames),
                     scope="post-hoc resource-matched periodic fixed-budget control; "
                     "uses realized total only, no ground-truth/image/task-error information",
+                    identical_hard_trajectory=identical,
+                    timing_scope="not remeasured: identical control reused" if identical else "measured independent control",
+                    joint_pair_histogram_matched=bool(cfg.get("execution",{}).get("repair_milestones")),
                 )
                 atomic_json(directory / "matched_trajectory.json", matched_rows)
             atomic_json(directory / "trajectory.json", rows)
@@ -373,5 +396,7 @@ def worker(spec, cfg, manifest, root, output):
     function = {"probe": probe, "train": train, "evaluate": evaluate}[spec["kind"]]
     if spec["kind"] == "probe":
         function(cfg, manifest, root, output)
+    elif spec["kind"] == "train":
+        function(spec,cfg,manifest,root,output,end_update=spec.get("end_update"))
     else:
         function(spec, cfg, manifest, root, output)

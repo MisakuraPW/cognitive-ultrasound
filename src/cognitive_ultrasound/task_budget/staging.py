@@ -7,7 +7,7 @@ from ..preparation.common import atomic_json, read_json
 
 def pilot_ids(cfg):
     p = cfg.get("execution")
-    if not p:
+    if not p or p.get("repair_milestones"):
         return []
     seed, weight = p["pilot_seed"], p["pilot_lambda"]
     if seed not in cfg["seeds"] or weight not in cfg["training"]["lambdas"]:
