@@ -244,6 +244,39 @@ def test_pilot_cannot_add_new_parameter_points(cfg):
     with pytest.raises(ValueError):pilot_ids(cfg)
 
 
+def test_gs_rejects_wrong_ad_primal_even_when_plain_replay_is_exact(cfg):
+    @jax.custom_vjp
+    def sample(h):
+        return jnp.stack([h-.03,h+.03])
+    def forward(h):
+        return jnp.stack([h-.03,h+.03])+.01,None
+    def backward(_,gradient):
+        return (gradient.sum(axis=0),)
+    sample.defvjp(forward,backward)
+    class BadAD:
+        def infer(self,h,m,p,key,cold=False):return sample(jnp.asarray(h))
+    p=initialize(42,cfg);model=BadAD()
+    images,_,contexts=rollout(cfg,model,ToyTask(),sample_frames(3),p,"E0",42)
+    _,g,_=ToyTask().video(images,True)
+    with pytest.raises(AssertionError,match="automatic-differentiation primal"):
+        gs_gradient(p,contexts,g,model,cfg,1.,0.)
+
+
+@pytest.mark.parametrize("fixed",[(4,2),(14,14)])
+def test_constant_budget_policy_equals_fixed_control_without_recomputation(cfg,fixed):
+    p=initialize(42,cfg)
+    for h,levels,k in (("first",cfg["budgets"]["first"],fixed[0]),("second",cfg["budgets"]["second"],fixed[1])):
+        p[h]["w2"]=jnp.zeros_like(p[h]["w2"])
+        p[h]["b2"]=jax.nn.one_hot(levels.index(k),len(levels))*100
+    a=ToyPerception();b=ToyPerception()
+    x,r,_=rollout(cfg,a,ToyTask(),sample_frames(4),p,"E1",42)
+    y,s,_=rollout(cfg,b,ToyTask(),sample_frames(4),p,"E0",42,fixed=fixed)
+    np.testing.assert_array_equal(x,y)
+    for rr,ss in zip(r,s):
+        assert (rr["k1"],rr["k2"],rr["lines1"],rr["lines2"])==(ss["k1"],ss["k2"],ss["lines1"],ss["lines2"])
+    for aa,bb in zip(a.calls,b.calls):np.testing.assert_array_equal(aa[0],bb[0])
+
+
 def test_rl_mask_illegal_actions_and_resume_adam(cfg, tmp_path):
     p = initialize(42, cfg)
     p["second"]["b2"] = jnp.array([0, 0, 0, 0, 1000.0])

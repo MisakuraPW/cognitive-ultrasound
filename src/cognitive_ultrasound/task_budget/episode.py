@@ -251,6 +251,11 @@ def gs_gradient(params, contexts, image_gradients, perception, cfg, temperature,
         gradient_primal_delta = max(
             gradient_primal_delta, float(np.max(np.abs(np.asarray(ad_out) - np.asarray(out))))
         )
+        if gradient_primal_delta > 2e-4:
+            raise AssertionError(
+                "GS automatic-differentiation primal differs from executed replay: "
+                f"{gradient_primal_delta}; reject this policy update, do not treat it as harmless drift"
+            )
 
         # Compute the inexpensive cost derivative separately, avoiding a second DPS VJP.
         def cost_fn(p):
