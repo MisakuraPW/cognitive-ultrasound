@@ -89,7 +89,8 @@ def tree_digest(tree):
     h = hashlib.sha256()
 
     def visit(x):
-        if isinstance(x, np.ndarray):
+        if isinstance(x, np.ndarray) or (hasattr(x, "shape") and hasattr(x, "dtype")):
+            x = np.asarray(x)
             h.update(str((x.dtype.str, x.shape)).encode())
             h.update(np.ascontiguousarray(x).tobytes())
         elif isinstance(x, dict):

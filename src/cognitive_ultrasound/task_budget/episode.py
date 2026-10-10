@@ -42,6 +42,9 @@ def rollout(
     retain_contexts=True,
     force_second=False,
     fixed_lines=None,
+    controller=None,
+    capture_filter=None,
+    capture_state_filter=None,
 ):
     rng = np.random.default_rng(seed)
     restored = copy.deepcopy(initial_state)
@@ -50,6 +53,10 @@ def rollout(
         raise ValueError("Diagnostic continuation requires the same explicit seed and fixed policy")
     if restored is not None and offset > 0 and restored["previous"] is None:
         raise ValueError("A warm-frame continuation cannot lose its posterior")
+    if controller is not None and restored is not None:
+        if restored.get("phase") == "middle":
+            raise ValueError("Learned-policy resume requires an after-frame commit")
+        controller.restore(restored["controller_state"])
     history = np.zeros((112, 112, 3), np.float32) if restored is None else restored["history"]
     masks = np.zeros_like(history) if restored is None else restored["masks"]
     previous = None if restored is None else restored["previous"]
@@ -73,6 +80,7 @@ def rollout(
                 last_budget=last_budget,
                 last_image=last_image,
                 rng_state=rng.bit_generator.state,
+                **({"controller_state": controller.snapshot()} if controller is not None else {}),
                 **extra,
             )
         )
@@ -94,7 +102,7 @@ def rollout(
         cold = previous is None
         old_image = np.zeros((112, 112), np.float32) if cold else last_image
         particles = np.zeros((2, 112, 112), np.float32) if cold else previous[..., -1]
-        if capture:
+        if capture and (capture_filter is None or capture_filter("before", index)):
             capture("before", index, snapshot(index))
         saliency_start = time.perf_counter()
         if cold:
@@ -118,7 +126,22 @@ def rollout(
         first = cfg["budgets"]["first"]
         legal0 = np.ones(len(first), bool)
         fixed_now = cfg["budgets"]["fixed"] if cold else fixed_array[local_index].tolist()
-        if method == "E0" or cold:
+        if controller is not None and not cold:
+            action0 = controller.select(
+                0,
+                index,
+                state0,
+                legal0,
+                rng,
+                particles=particles,
+                prior=particles,
+                past=past_images,
+                observed=None,
+                mask=None,
+                k1=0,
+            )
+            k1, noise0 = first[action0], np.zeros(len(first), np.float32)
+        elif method == "E0" or cold:
             k1 = fixed_now[0]
             action0, noise0 = first.index(k1), np.zeros(len(first), np.float32)
         else:
@@ -170,7 +193,7 @@ def rollout(
             last_budget,
             feature_scales=cfg.get("feature_scales"),
         )
-        if capture:
+        if capture and (capture_filter is None or capture_filter("middle", index)):
             capture(
                 "middle",
                 index,
@@ -196,7 +219,22 @@ def rollout(
             )
         second = cfg["budgets"]["second"]
         legal1 = np.array([k1 + k <= cfg["budgets"]["maximum"] for k in second])
-        if method == "E0" or cold:
+        if controller is not None and not cold:
+            action1 = controller.select(
+                1,
+                index,
+                state1,
+                legal1,
+                rng,
+                particles=middle_samples[..., -1],
+                prior=particles,
+                past=past_images,
+                observed=observation,
+                mask=mask1,
+                k1=k1,
+            )
+            k2, noise1 = second[action1], np.zeros(len(second), np.float32)
+        elif method == "E0" or cold:
             k2 = fixed_now[1]
             action1, noise1 = second.index(k2), np.zeros(len(second), np.float32)
         else:
@@ -287,13 +325,24 @@ def rollout(
         span = (cfg["task"]["frames"] - 1) * cfg["task"]["period"] + 1
         past_images = past_images[-span:]
         last_budget = k1 + k2
-        if capture:
+        if capture and (capture_filter is None or capture_filter("after", index)):
+            if capture_state_filter is not None and not capture_state_filter(index):
+                value = copy.deepcopy(
+                    dict(
+                        next_frame=index + 1,
+                        prediction=prediction,
+                        final_mask=final_mask,
+                        row=rows[-1],
+                    )
+                )
+            else:
+                value = snapshot(
+                    index + 1, "after", prediction=prediction, final_mask=final_mask, row=rows[-1]
+                )
             capture(
                 "after",
                 index,
-                snapshot(
-                    index + 1, "after", prediction=prediction, final_mask=final_mask, row=rows[-1]
-                ),
+                value,
             )
     return np.stack(images), rows, contexts
 

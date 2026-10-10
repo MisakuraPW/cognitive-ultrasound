@@ -1,0 +1,34 @@
+extends: task_budget_ef_repair.yaml
+# Independent objectives; identical frozen perception/selection, main sampled policy.
+cohorts: {train: 64, development: 16, confirmation: 32}
+task: {stride: 1}
+training:
+  learning_rate: 0.001
+  gradient_clip: 5.0
+runtime:
+  job_timeout_hours: 24
+execution:
+  repair_milestones: null
+stage_budget:
+  source_batch: /root/autodl-tmp/outputs_casl/task_budget_ef_repair_v4
+  historical_roots: [/root/autodl-tmp/outputs_casl]
+  cohort_seed: 20261011
+  arms: [T1, Q2, T2]
+  pilot_train: 8
+  pilot_dev: 4
+  pilot_passes: 2
+  full_passes: 4
+  training_seed: 42
+  evaluation_seeds: [42, 31415]
+  history_frames: 16
+  hidden: 32
+  fixed_controls: [[7, 0], [7, 4], [7, 7], [7, 14]]
+  mse_margin: 0.05
+  p90_margin: 0.10
+  mse_floor: 0.000001
+  dual_lr: 0.10
+  dual_max: 100.0
+  rl_score_scale: 128.0
+  checkpoint_frames: 16
+  fresh_free_gib: 32
+  functional_fixture: false

@@ -147,6 +147,7 @@ def trajectory(
     frames_limit=None,
     capture_indices=None,
     fixed_lines=None,
+    controller=None,
 ):
     """Chunk receipts commit frames+state together; full receipt is written last."""
     attempt_start = time.monotonic()
@@ -184,6 +185,7 @@ def trajectory(
             )
         ),
         captures=sorted(set(anchors(len(target))) | set(capture_indices or [])),
+        **({"controller": controller.identity} if controller is not None else {}),
     )
     directory = root / "trajectories" / Path(name).stem / f"s{seed}" / digest(unit)[:20]
     result = committed(directory, unit)
@@ -191,6 +193,8 @@ def trajectory(
         runtime.progress(case=name, condition=tag, operation="REUSE_TRAJECTORY")
         with np.load(directory / "images.npz", allow_pickle=False) as z:
             images, masks = z["images"].copy(), z["masks"].copy()
+        if controller is not None:
+            controller.restore(load_tree(directory / "controller.npz"))
         return images, masks, read_json(directory / "rows.json"), result, directory
     directory.mkdir(parents=True, exist_ok=True)
     arrays = list(prefix[0])
@@ -212,6 +216,8 @@ def trajectory(
             raise ValueError("State/frame commit disagreement")
     if len(arrays) > len(target):
         raise ValueError("Too many committed frames")
+    if controller is not None and state is not None:
+        controller.restore(state["controller_state"])
     chunk_images = []
     chunk_masks = []
     chunk_rows = []
@@ -280,6 +286,13 @@ def trajectory(
             retain_contexts=False,
             force_second=force_second,
             fixed_lines=fixed_lines[len(arrays) :] if fixed_lines is not None else None,
+            controller=controller,
+            capture_filter=lambda stage, index: stage == "after" or index in selected,
+            capture_state_filter=lambda index: (
+                index in selected
+                or (index + 1) % cfg["value_diagnostics"]["checkpoint_frames"] == 0
+                or index + 1 == len(target)
+            ),
         )
     images = np.stack(arrays)
     mask_array = np.stack(masks)
@@ -293,8 +306,8 @@ def trajectory(
         seed=seed,
         frames=len(target),
         quality=q,
-        mean_lines=float(np.mean(schedule.sum(1))),
-        total_lines=int(schedule.sum()),
+        mean_lines=float(np.mean([r["k1"] + r["k2"] for r in rows])),
+        total_lines=sum(r["k1"] + r["k2"] for r in rows),
         inference_seconds=float(sum(x["frame_wall_s"] for x in rows)),
         perception_calls=sum(x["perception_calls"] for x in rows),
         executed_calls=sum(
@@ -313,5 +326,8 @@ def trajectory(
         functional_fixture=cfg["value_diagnostics"]["functional_fixture"],
     )
     names = ["images.npz", "rows.json"] + [p.name for p in directory.glob("*_*.npz")]
+    if controller is not None:
+        save_tree(directory / "controller.npz", controller.snapshot())
+        names.append("controller.npz")
     commit(directory, unit, result, names)
     return images, mask_array, rows, result, directory
