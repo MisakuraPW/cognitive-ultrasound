@@ -1,0 +1,24 @@
+extends: task_budget_ef_repair.yaml
+execution:
+  repair_milestones: null
+value_diagnostics:
+  source_batch: /root/autodl-tmp/outputs_casl/task_budget_ef_repair_v4
+  expansion_parent: /root/autodl-tmp/outputs_casl/task_budget_value_v1
+  historical_roots: [/root/autodl-tmp/outputs_casl]
+  phases: [P0, P1, P2, P3, P4, P5]
+  checkpoint_frames: 16
+  debug_frames: 64
+  seed: 42
+  verification_seed: 31415
+  extension_seed: 20261010
+  extension_strata: [6, 5, 5] # EF<40, 40<=EF<60, EF>=60; diagnostic coverage only
+  min_extension_frames: 96
+  gate_ef_pp: 0.05
+  gate_mse_abs: 0.0001
+  mse_margin: 0.05
+  p90_margin: 0.10
+  ef_margin_pp: 0.5
+  bootstrap_seed: 20261010
+  bootstrap_replicates: 5000
+  predictor_alpha: 1.0
+  functional_fixture: false

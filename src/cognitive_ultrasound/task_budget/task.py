@@ -2,18 +2,18 @@
 
 import json
 import os
-import subprocess
-import time
 import shutil
+import subprocess
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
 from ..config import ROOT
 from ..preparation.common import atomic_json, atomic_npz
-from .protocol import causal_window, clip_indices, task_scores
 from .exchange import write_exchange
+from .protocol import causal_window, clip_indices, task_scores
 
 
 class EFService:
@@ -25,7 +25,9 @@ class EFService:
         if self.ipc_mode == "tmpfs":
             if not os.path.isdir("/dev/shm"):
                 raise RuntimeError("tmpfs IPC requested but /dev/shm unavailable")
-            self.exchange_directory = type(self.directory)(tempfile.mkdtemp(prefix="casl-ef-", dir="/dev/shm"))
+            self.exchange_directory = type(self.directory)(
+                tempfile.mkdtemp(prefix="casl-ef-", dir="/dev/shm")
+            )
         self.config_file = self.directory / "config.json"
         atomic_json(self.config_file, cfg)
         atomic_npz(self.directory / "coordinates.npz", coordinates=coordinates)
@@ -79,7 +81,11 @@ class EFService:
 
     def request(self, clips, gradient=False, domain="polar"):
         start = time.perf_counter()
-        write_exchange(self.exchange_directory / "input.npz", dict(clips=np.asarray(clips, np.float32)), self.ipc_mode)
+        write_exchange(
+            self.exchange_directory / "input.npz",
+            dict(clips=np.asarray(clips, np.float32)),
+            self.ipc_mode,
+        )
         self.process.stdin.write(
             json.dumps(
                 dict(
@@ -115,11 +121,29 @@ class EFService:
             result["gradients"].sum(axis=1) if not history else result["gradients"][:, -1]
         )
         scores = task_scores(particles, current_gradient)
+        if self.cfg.get("value_diagnostics"):
+            variance = np.var(particles, axis=0)
+            mean_squared = np.mean(current_gradient, axis=0) ** 2
+            square_mean = np.mean(current_gradient**2, axis=0)
+            self.last_score_diagnostics = dict(
+                variance_lines=variance.sum(0),
+                sensitivity_lines=mean_squared.sum(0),
+                combined_lines=scores.copy(),
+                mean_squared_gradient_sum=float(square_mean.sum()),
+                gradient_cancellation_ratio=float(
+                    mean_squared.sum() / max(float(square_mean.sum()), 1e-30)
+                ),
+            )
         return scores, result["predictions"]
 
-    def video(self, images, gradient=False, domain="polar"):
+    def video(self, images, gradient=False, domain="polar", stride=None):
         task = self.cfg["task"]
-        indices = clip_indices(len(images), task["frames"], task["period"], task["stride"])
+        indices = clip_indices(
+            len(images),
+            task["frames"],
+            task["period"],
+            task["stride"] if stride is None else stride,
+        )
         predictions, grads = [], np.zeros_like(images, np.float32)
         # One clip per request bounds EF autograd memory for complete videos.
         for ids in indices:

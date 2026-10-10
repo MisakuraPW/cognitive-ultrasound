@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 
 import h5py
@@ -35,7 +36,7 @@ def atomic_json(file, value):
         json.dump(clean(value), stream, ensure_ascii=False, indent=2, allow_nan=False)
         stream.flush()
         os.fsync(stream.fileno())
-    temporary.replace(file)
+    atomic_replace(temporary, file)
 
 
 def atomic_npz(file, **arrays):
@@ -46,11 +47,29 @@ def atomic_npz(file, **arrays):
         np.savez_compressed(stream, **arrays)
         stream.flush()
         os.fsync(stream.fileno())
-    temporary.replace(file)
+    atomic_replace(temporary, file)
+
+
+def atomic_replace(temporary, file):
+    """Windows readers may briefly deny delete sharing; never fall back to in-place writes."""
+    for attempt in range(101):
+        try:
+            Path(temporary).replace(file)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == 100:
+                raise
+            time.sleep(0.01)
 
 
 def read_json(file):
-    return json.loads(Path(file).read_text(encoding="utf-8"))
+    for attempt in range(101):
+        try:
+            return json.loads(Path(file).read_text(encoding="utf-8"))
+        except PermissionError:
+            if os.name != "nt" or attempt == 100:
+                raise
+            time.sleep(0.01)
 
 
 def digest(value):

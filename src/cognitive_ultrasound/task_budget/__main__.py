@@ -22,19 +22,88 @@ def main():
             "worker",
             "report",
             "bundle",
+            "value-prepare",
+            "value-probe",
+            "value-calibrate",
+            "value-run",
+            "value-resume",
+            "value-status",
+            "value-stop",
+            "value-worker",
+            "value-report",
+            "value-bundle",
         ],
     )
     parser.add_argument("--config", default="configs/task_budget_ef.yaml")
     parser.add_argument("--output", required=True)
     parser.add_argument("--task")
     parser.add_argument("--worker-output")
+    parser.add_argument("--phase", choices=["P0", "P1", "P2", "P3", "P4", "P5"])
+    parser.add_argument(
+        "--expand16", action="store_true", help="Explicit independent16-case diagnostic extension"
+    )
     args = parser.parse_args()
     root = Path(args.output).resolve()
-    if args.action == "worker":
+    if args.action.startswith("value-"):
+        from . import value_suite
+
+        action = args.action.removeprefix("value-")
+        if action == "worker":
+            if not args.phase:
+                parser.error("value-worker requires --phase")
+            from .value_workers import worker as value_worker
+
+            value_worker(
+                args.phase, read_json(root / "config.json"), read_json(root / "manifest.json"), root
+            )
+        elif action == "status":
+            import json
+
+            v = (
+                read_json(root / "status.json")
+                if (root / "status.json").exists()
+                else {"status": "not_started"}
+            )
+            v["coordinator_alive"] = value_suite.process_alive(v.get("pid"), v.get("created"))
+            if v.get("worker_pid"):
+                v["worker_alive"] = value_suite.process_alive(v["worker_pid"], v["worker_created"])
+            print(json.dumps(v, ensure_ascii=False, indent=2))
+        elif action == "stop":
+            root.mkdir(parents=True, exist_ok=True)
+            (root / "STOP").write_text("User requested stop\n")
+            state = read_json(root / "status.json") if (root / "status.json").exists() else {}
+            if not value_suite.process_alive(state.get("pid"), state.get("created")):
+                value_suite.terminate_owned_worker(state)
+        elif action in ["report", "bundle"]:
+            from . import value_report
+
+            value_report.report(root)
+            if action == "bundle":
+                print(value_report.bundle(root))
+        else:
+            file = (
+                "configs/task_budget_value.yaml"
+                if args.config == "configs/task_budget_ef.yaml"
+                else args.config
+            )
+            cfg = value_suite.config(file)
+            if action == "prepare":
+                value_suite.prepare(cfg, root, args.expand16)
+            else:
+                value_suite.run(
+                    cfg,
+                    root,
+                    "resume" if action == "resume" else "run",
+                    args.expand16,
+                    probe_only=action in ["probe", "calibrate"],
+                )
+    elif args.action == "worker":
         from .experiment import worker
 
         spec = read_json(args.task)
-        worker_output = Path(args.worker_output).resolve() if args.worker_output else root / "jobs" / spec["id"]
+        worker_output = (
+            Path(args.worker_output).resolve() if args.worker_output else root / "jobs" / spec["id"]
+        )
         if not worker_output.is_relative_to(root):
             raise ValueError("Worker output must stay inside its batch directory")
         worker(
