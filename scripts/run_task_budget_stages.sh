@@ -11,6 +11,13 @@ unset LD_LIBRARY_PATH
 action="${1:-start}"
 output="${2:-/root/autodl-tmp/outputs_casl/task_budget_stages_v1}"
 config="${TASK_STAGES_CONFIG:-configs/task_budget_stages.yaml}"
+if [[ "$action" == start || "$action" == resume ]]; then
+  if [[ -f "$output/scope_closure_136.json" && "${TASK_STAGES_RESUME_ORIGINAL:-0}" != 1 ]]; then
+    printf 'This batch was closed at136 by user request. Use a new output for a new experiment.\n'
+    printf 'Only an explicit decision to resume the ORIGINAL264 plan may set TASK_STAGES_RESUME_ORIGINAL=1.\n'
+    exit 2
+  fi
+fi
 case "$action" in
   start|resume|probe|calibrate)
     mkdir -p "$(dirname "$output")"
