@@ -1,0 +1,39 @@
+# Independent implementation of the senior thesis FINAL method, not original weights.
+variant: independent_dynamic_belief_v2
+seed: 20261016
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+file_list: /root/autodl-fs/datasets/EchoNet-Dynamic/FileList.csv
+split_manifest: configs/splits/split.yaml
+precision: fp32
+cohorts: {train: 1024, development: 32, test: 32} # train:null uses all eligible TRAIN
+model: {width: 32, latent_channels: 16, delta_limit: 0.1}
+selection:
+  groups: [10, 4]
+  weights: {uncertainty: 1.0, residual: 0.5, change: 0.5, value: 0.2, history: 0.2}
+  redundancy: 0.5
+  redundancy_sigma: 8.0
+  residual_sigma: 6.0
+  value_decay: 0.9
+loss: {rec: 1.0, obs: 0.5, lat: 0.1, unc: 0.05, proj: 0.1, ssim: 0.2}
+training:
+  learning_rate: 0.0001
+  gradient_clip: 1.0
+  checkpoint_updates: 25
+  validate_every: 2
+  patience: 6 # validation checks without improvement, not epochs
+  min_delta: 0.00001
+  codec: {epochs: 30, batch: 8, frames: 16}
+  prior: {epochs: 20, batch: 8, frames: 5}
+  filter: {epochs: 40, batch: 8, frames: 24, burn_in: 8, bptt: 8}
+runtime:
+  threads: 4
+  workers: 4
+  prefetch: 2
+  calibrate_threads: [2, 4, 8]
+  free_gib: 20
+  max_output_gib: 10
+evaluation:
+  component_frames: 64
+  ef_enabled: false # optional final-only EF; no task gradients during BF training
+  ef_config: configs/task_budget_ef_repair.yaml
+  coordinates: /root/autodl-tmp/outputs_casl/task_budget_stages_v1/coordinates.npz

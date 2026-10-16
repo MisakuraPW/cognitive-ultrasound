@@ -1,0 +1,11 @@
+# Dedicated environment. Reuse the AutoDL PyTorch2.8.0/CUDA12.8 image.
+# Do NOT install the old CASL requirement.txt in this environment.
+numpy>=1.26,<3
+scipy>=1.13,<2
+h5py>=3.11,<4
+PyYAML>=6,<7
+matplotlib>=3.8,<4
+pillow>=10,<13
+scikit-image>=0.23,<1
+psutil>=5.9,<8
+-e .
