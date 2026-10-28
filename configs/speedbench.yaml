@@ -1,0 +1,45 @@
+# No training, downloads or automatic approximate-profile adoption.
+data_root: /root/autodl-tmp/datasets/CASL-EchoNet-polar
+split_manifest: configs/splits/split.yaml
+checkpoint: checkpoints/official
+torch_export: /root/autodl-tmp/outputs_casl/compute_lab_v5/export
+belief_checkpoint: null # optional existing fast_belief/filter/best.pt; never train on demand
+pythons:
+  jax: /root/miniconda3/envs/casl/bin/python
+  torch: /root/miniconda3/bin/python
+threads: 4
+seed: 20261029
+budget: 14
+cases: 2
+frames: 64
+modes: [fixed, closed_loop]
+warmup: 3
+repeats: 20
+timeout_seconds: 1800
+max_output_gib: 2
+methods:
+  - official
+  - jax_constants
+  - jax_prefetch
+  - jax_cache
+  - jax_transfers
+  - jax_25_fp32
+  - jax_50_fp16
+  - jax_50_bf16
+  - jax_25_fp16
+  - jax_25_bf16
+  - jax_dps10
+  - jax_dps5
+  - jax_coarse8
+  - jax_coarse16
+  - jax_coarse4
+  - jax_10_fp32
+  - jax_5_fp32
+  - torch_eager
+  - torch_compile
+  - torch_graph
+  - torch_25_fp32
+  - torch_25_fp16
+  - torch_25_bf16
+  - interpolation
+  - fast_belief
