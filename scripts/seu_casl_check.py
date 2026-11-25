@@ -60,6 +60,10 @@ def gpu_check(root):
             raise SystemExit("Unexpected acquisition budget")
         if not all(math.isfinite(float(row[key])) for key in ("psnr", "ssim", "total_s")):
             raise SystemExit("Non-finite evaluation output")
+    for row in rows:
+        print(f"frame={row['frame']} lines={row['actual_lines']} "
+              f"PSNR={float(row['psnr']):.3f} SSIM={float(row['ssim']):.4f} "
+              f"total_s={float(row['total_s']):.4f}")
     print("GPU_SMOKE_OK", root)
 
 

@@ -105,10 +105,10 @@ test('GPU job reaches its checks when the compute node has no Git', {skip: !bash
       'hostname() { echo fixture-node; }',
       'module() { :; }',
       'conda() { if [[ $1 == info ]]; then printf "%s/env\\n" "$PWD"; fi; }',
-      'nvidia-smi() { echo FIXTURE_NVIDIA_SMI; }',
+      'nvidia-smi() { printf "FIXTURE_NVIDIA_SMI LD=%s\\n" "$LD_LIBRARY_PATH"; }',
       'python() { printf "FIXTURE_PYTHON %s\\n" "$*"; }',
       'PATH=/fixture-without-git; hash -r',
-      'source "$SEU_FIXTURE_JOB" gpu-smoke "$PWD" abcdef',
+      'source "$SEU_FIXTURE_JOB" gpu-smoke "$PWD" abcdef /fixture/cudnn',
     ].join('\n');
     const job = path.resolve(__dirname, '..', 'seu_casl_job.sh').replaceAll('\\','/');
     const result = spawnSync(bash, ['--noprofile','--norc'], {
@@ -116,7 +116,7 @@ test('GPU job reaches its checks when the compute node has no Git', {skip: !bash
     });
     assert.equal(result.status,0,result.stderr);
     assert.match(result.stdout,/submitted_repo_rev=abcdef/);
-    assert.match(result.stdout,/FIXTURE_NVIDIA_SMI/);
+    assert.match(result.stdout,/FIXTURE_NVIDIA_SMI LD=\/fixture\/cudnn/);
     assert.match(result.stdout,/FIXTURE_PYTHON scripts\/check_gpu.py/);
     assert.match(result.stdout,/FIXTURE_PYTHON -m cognitive_ultrasound evaluate/);
     assert.match(result.stdout,/FIXTURE_PYTHON scripts\/seu_casl_check.py gpu/);
@@ -129,10 +129,13 @@ test('the login-node launcher passes the submission revisions to the batch worke
     const shims = path.join(dir,'shims');
     fs.mkdirSync(shims);
     fs.writeFileSync(path.join(shims,'sbatch_wrapper'), '#!/usr/bin/env bash\nprintf "%s\\n" "$@"\n', {mode:0o755});
+    const envBin = path.join(dir,'env','bin');
+    fs.mkdirSync(envBin,{recursive:true});
+    fs.writeFileSync(path.join(envBin,'python'),'#!/usr/bin/env bash\necho /fixture/cudnn\n',{mode:0o755});
     const launcher = path.resolve(__dirname,'..','run_seu_casl.sh').replaceAll('\\','/');
     for (const task of ['gpu-smoke','cpu-check']) {
       const script = [
-        'export PATH="$PWD/shims:/usr/bin:/bin:$PATH" CASL_SEU_ROOT="$PWD/casl"',
+        'export PATH="$PWD/shims:/usr/bin:/bin:$PATH" CASL_SEU_ROOT="$PWD/casl" CASL_SEU_ENV="$PWD/env"',
         'git() { case "$2" in */vendor/casl/zea) echo zea-rev;; */vendor/casl) echo casl-rev;; *) echo repo-rev;; esac; }',
         'source "$SEU_TEST_SUBMIT" submit "$SEU_TEST_TASK"',
       ].join('\n');
@@ -143,7 +146,7 @@ test('the login-node launcher passes the submission revisions to the batch worke
       assert.ok(lines.includes(task));
       if (task === 'gpu-smoke') {
         assert.ok(lines.includes('--gres=gpu:1'));
-        assert.equal(lines.at(-1),'repo-rev');
+        assert.deepEqual(lines.slice(-2),['repo-rev','/fixture/cudnn']);
       } else {
         assert.deepEqual(lines.slice(-3),['repo-rev','casl-rev','zea-rev']);
       }

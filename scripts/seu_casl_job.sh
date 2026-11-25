@@ -97,6 +97,13 @@ case $task in
         module load anaconda3-2024.10-1
         source "$(conda info --base)/etc/profile.d/conda.sh"
         conda activate "$env_dir"
+        module load cuda-12.8
+        cudnn_dir=${4:-}
+        if [[ -z $cudnn_dir ]]; then
+            cudnn_dir=$(python scripts/seu_casl_cudnn.py "$root")
+        fi
+        export LD_LIBRARY_PATH="$cudnn_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        printf 'CASL cuDNN directory: %s\n' "$cudnn_dir"
 
         out="$root/jobs/acceptance/gpu-$SLURM_JOB_ID"
         mkdir -p -- "$out"

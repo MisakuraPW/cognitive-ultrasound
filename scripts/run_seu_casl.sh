@@ -48,7 +48,13 @@ case ${1:-help} in
         fi
         # Some GPU compute nodes have no Git. Record checkout revisions at submission.
         revisions=("$(git -C "$repo" rev-parse --verify HEAD)")
-        if [[ $task == cpu-check ]]; then
+        if [[ $task == gpu-smoke ]]; then
+            # Version lookup reads shared files only. Reject an unusable runtime before queuing.
+            if command -v module >/dev/null; then module load cuda-12.8; fi
+            env_dir=${CASL_SEU_ENV:-$root/envs/casl}
+            cudnn_dir=$("$env_dir/bin/python" "$repo/scripts/seu_casl_cudnn.py" "$root")
+            revisions+=("$cudnn_dir")
+        elif [[ $task == cpu-check ]]; then
             for dependency in vendor/casl vendor/casl/zea; do
                 revisions+=("$(git -C "$repo/$dependency" rev-parse --verify HEAD)")
             done
