@@ -134,31 +134,45 @@ test('the login-node launcher passes the submission revisions to the batch worke
   try {
     const shims = path.join(dir,'shims');
     fs.mkdirSync(shims);
-    fs.writeFileSync(path.join(shims,'sbatch_wrapper'), '#!/usr/bin/env bash\nprintf "%s\\n" "$@"\n', {mode:0o755});
+    fs.writeFileSync(path.join(shims,'sbatch_wrapper'), '#!/bin/bash\nprintf "%s\\n" "$@"\n', {mode:0o755});
     const envBin = path.join(dir,'env','bin');
     fs.mkdirSync(envBin,{recursive:true});
-    fs.writeFileSync(path.join(envBin,'python'),'#!/usr/bin/env bash\necho /fixture/cudnn\n',{mode:0o755});
+    fs.writeFileSync(path.join(envBin,'python'),'#!/bin/bash\necho /fixture/cudnn\n',{mode:0o755});
     for (const item of ['bin/nvcc','bin/ptxas','bin/nvlink','nvvm/libdevice/libdevice.10.bc','lib64/libcudart.so.12']) {
       const file = path.join(dir,'cuda',item);
       fs.mkdirSync(path.dirname(file),{recursive:true});
-      fs.writeFileSync(file,item.startsWith('bin/') ? '#!/usr/bin/env bash\nexit 0\n' : 'fixture',{mode:0o755});
+      fs.writeFileSync(file,item.startsWith('bin/') ? '#!/bin/bash\nexit 0\n' : 'fixture',{mode:0o755});
     }
-    fs.writeFileSync(path.join(shims,'git'),'#!/usr/bin/env bash\necho git-fixture\n',{mode:0o755});
+    fs.writeFileSync(path.join(shims,'git'),'#!/bin/bash\necho git-fixture\n',{mode:0o755});
     const launcher = path.resolve(__dirname,'..','run_seu_casl.sh').replaceAll('\\','/');
-    for (const task of ['gpu-smoke','cpu-check']) {
+    for (const task of ['gpu-smoke','cpu-check','bf-core-after-42','bf-core-after-43']) {
       const script = [
         'export PATH="$PWD/shims:/usr/bin:/bin:$PATH" CASL_SEU_ROOT="$PWD/casl" CASL_SEU_ENV="$PWD/env"',
         'export CASL_SEU_CUDA_ROOT="$PWD/cuda"',
         'export CASL_SEU_GIT_BIN="$PWD/shims/git"',
         'git() { case "$2" in */vendor/casl/zea) echo zea-rev;; */vendor/casl) echo casl-rev;; *) echo repo-rev;; esac; }',
+        'sinfo() { echo gpu-L20; }',
+        'mkdir() { :; }',
+        'id() { echo fixture-user; }',
+        'sacct() { case "$SEU_TEST_TASK" in *-42) echo "42|casl-bf-env|PENDING";; *-43) echo "43|casl-bf-env|FAILED";; esac; }',
         'source "$SEU_TEST_SUBMIT" submit "$SEU_TEST_TASK"',
       ].join('\n');
       const result = spawnSync(bash,['--noprofile','--norc'], {cwd:dir,input:script,encoding:'utf8',
         env:{...process.env,SEU_TEST_TASK:task,SEU_TEST_SUBMIT:launcher}});
+      if (task.endsWith('-43')) {
+        assert.equal(result.status,2,result.stderr);
+        assert.match(result.stderr,/No active or successful Torch environment job/);
+        continue;
+      }
       assert.equal(result.status,0,result.stderr);
       const lines = result.stdout.trim().split(/\r?\n/);
-      assert.ok(lines.includes(task));
-      if (task === 'gpu-smoke') {
+      assert.ok(lines.includes(task.endsWith('-42') ? 'bf-core' : task));
+      if (task.endsWith('-42')) {
+        assert.ok(lines.includes('--dependency=afterok:42'));
+        assert.ok(lines.includes('--kill-on-invalid-dep=yes'));
+        assert.ok(lines.includes('--job-name=casl-bf-core'));
+      }
+      if (task !== 'cpu-check') {
         assert.ok(lines.includes('--gres=gpu:1'));
         assert.deepEqual(lines.slice(-4,-2),['repo-rev','/fixture/cudnn']);
         assert.match(lines.at(-2),/\/cuda$/);

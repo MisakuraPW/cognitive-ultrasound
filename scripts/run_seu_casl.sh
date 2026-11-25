@@ -10,6 +10,7 @@ usage() {
         '  bash scripts/run_seu_casl.sh submit TASK [partition]' \
         '  Tasks: data-prep cpu-check gpu-smoke bf-env bf-smoke bf-train seqdiff-smoke seqdiff-train seqdiff-resume-JOB_ID accel-compare' \
         '         bf-core seqdiff-core bf-core-resume-JOB_ID seqdiff-core-resume-JOB_ID accel-core-test' \
+        '         bf-core-after-ENV_JOB_ID' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -19,6 +20,26 @@ case ${1:-help} in
     submit)
         if (( $# < 2 || $# > 3 )); then usage >&2; exit 2; fi
         task=$2
+        dependency=()
+        if [[ $task =~ ^bf-core-after-([1-9][0-9]*)$ ]]; then
+            env_job=${BASH_REMATCH[1]}
+            history=$(sacct -X -u "$(id -un)" -j "$env_job" -nP --format=JobIDRaw,JobName%32,State)
+            case $history in
+                "$env_job|casl-bf-env|RUNNING"|"$env_job|casl-bf-env|PENDING"|\
+                "$env_job|casl-bf-env|CONFIGURING"|"$env_job|casl-bf-env|COMPLETING")
+                    dependency=(--dependency="afterok:$env_job" --kill-on-invalid-dep=yes)
+                    printf 'Wait for successful Torch environment job %s\n' "$env_job"
+                    ;;
+                "$env_job|casl-bf-env|COMPLETED")
+                    printf 'Torch environment job %s already completed\n' "$env_job"
+                    ;;
+                *)
+                    printf 'No active or successful Torch environment job %s owned by this account\n' "$env_job" >&2
+                    exit 2
+                    ;;
+            esac
+            task=bf-core
+        fi
         log_dir="$root/jobs/acceptance"
         case $task in
             data-prep)
@@ -140,7 +161,7 @@ case ${1:-help} in
         mkdir -p -- "$log_dir"
         printf 'Log directory: %s\n' "$log_dir"
         exec "$submitter" --job-name="casl-$task" --partition="$partition" \
-            "${resources[@]}" --output="$log_dir/%x-%j.log" \
+            "${resources[@]}" "${dependency[@]}" --output="$log_dir/%x-%j.log" \
             "$repo/scripts/seu_casl_job.sh" "$task" "$repo" "${job_args[@]}"
         ;;
     status|logs)
