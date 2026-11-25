@@ -36,8 +36,12 @@ if [[ $(pwd -P) != "$checkout" ]]; then
     exec bash scripts/seu_acceleration.sh "$@"
 fi
 out="$root/jobs/acceleration/$task-$SLURM_JOB_ID"
-if [[ $task == seqdiff-resume-* ]]; then
-    out="$root/jobs/acceleration/seqdiff-train-${task#seqdiff-resume-}"
+if [[ $task == *-resume-* ]]; then
+    [[ $task =~ ^(seqdiff|seqdiff-core|bf-core)-resume-([1-9][0-9]*)$ ]]
+    original=${BASH_REMATCH[1]}
+    prior=${BASH_REMATCH[2]}
+    if [[ $original == seqdiff ]]; then original=seqdiff-train; fi
+    out="$root/jobs/acceleration/$original-$prior"
     [[ $(cat "$out/revision.txt") == "$revision" ]]
 else
     mkdir -p -- "$out"
@@ -45,7 +49,7 @@ fi
 exec 8>"$out/.job.lock"
 flock -n 8
 benchmark="$out/benchmark"
-if [[ $task == seqdiff-resume-* && -d $benchmark ]]; then
+if [[ $task == *-resume-* && -d $benchmark ]]; then
     # Benchmark identity includes the physical GPU. Keep the old attempt intact.
     benchmark="$out/benchmark-$SLURM_JOB_ID"
 fi
@@ -54,11 +58,11 @@ export MPLBACKEND=Agg CUBLAS_WORKSPACE_CONFIG=:4096:8 JAX_PLATFORMS=cuda
 export KERAS_BACKEND=jax
 
 torch_python=$jax_python
-if [[ $task == bf-* || $task == accel-compare ]]; then
+if [[ $task == bf-* || $task == accel-compare || $task == accel-core-test ]]; then
     torch_python=
     for candidate in "${CASL_SEU_TORCH_PYTHON:-}" "$root/envs/fast-belief/bin/python" "$jax_python"; do
         [[ -n $candidate && -x $candidate ]] || continue
-        if "$candidate" -c 'import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0)); x=torch.ones(16,16,device="cuda"); assert (x@x)[0,0].item()==16'; then
+        if env -u LD_LIBRARY_PATH "$candidate" -c 'import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0), torch.backends.cudnn.version()); x=torch.ones(16,16,device="cuda"); assert (x@x)[0,0].item()==16'; then
             torch_python=$candidate
             break
         fi
@@ -70,14 +74,24 @@ if [[ $task == bf-* || $task == accel-compare ]]; then
     fi
 fi
 
-if [[ $task != seqdiff-resume-* ]]; then
+if [[ $task != *-resume-* ]]; then
     printf '%s\n' "$revision" > "$out/revision.txt"
     "$jax_python" -u scripts/seu_acceleration.py configure "$task" "$out" "$data" "$jax_python" "$torch_python"
 fi
 case $task in
-    bf-*) "$torch_python" -u -m cognitive_ultrasound.fast_belief run --config "$out/training.json" --output "$out/belief" ;;
+    bf-*)
+        bf_action=run
+        if [[ $task == *-resume-* ]]; then bf_action=resume; fi
+        env -u LD_LIBRARY_PATH "$torch_python" -u -m cognitive_ultrasound.fast_belief "$bf_action" --config "$out/training.json" --output "$out/belief"
+        ;;
     seqdiff-*) "$jax_python" -u scripts/seu_acceleration.py train-vivit "$out" ;;
-    accel-compare) ;;
+    accel-compare|accel-core-test) ;;
 esac
+if [[ $task == bf-core || $task == seqdiff-core || $task == *-core-resume-* ]]; then
+    if [[ $task == bf-* ]]; then stage=belief; else stage=vivit; fi
+    test -s "$out/$stage/complete.json"
+    printf 'SEU_CORE_TRAIN_OK %s\n' "$out"
+    exit 0
+fi
 "$jax_python" -u -m cognitive_ultrasound.speedbench run --config "$out/benchmark.json" --output "$benchmark"
 "$jax_python" -u scripts/seu_acceleration.py summarize "$out" --benchmark "$benchmark"

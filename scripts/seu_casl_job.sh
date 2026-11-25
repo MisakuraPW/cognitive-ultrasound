@@ -112,7 +112,8 @@ case $task in
         "$py" -c 'import torch; from cognitive_ultrasound.fast_belief import runner; assert torch.version.cuda == "12.8"; print(torch.__version__, torch.version.cuda, torch.__file__)'
         echo "BF_ENV_OK $torch_env"
         ;;
-    gpu-smoke|bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare)
+    gpu-smoke|bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare|\
+    bf-core|seqdiff-core|bf-core-resume-*|seqdiff-core-resume-*|accel-core-test)
         module load anaconda3-2024.10-1
         source "$(conda info --base)/etc/profile.d/conda.sh"
         conda activate "$env_dir"

@@ -9,6 +9,7 @@ usage() {
         'Usage:' \
         '  bash scripts/run_seu_casl.sh submit TASK [partition]' \
         '  Tasks: data-prep cpu-check gpu-smoke bf-env bf-smoke bf-train seqdiff-smoke seqdiff-train seqdiff-resume-JOB_ID accel-compare' \
+        '         bf-core seqdiff-core bf-core-resume-JOB_ID seqdiff-core-resume-JOB_ID accel-core-test' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -39,12 +40,14 @@ case ${1:-help} in
                 resources=(--time=00:30:00 --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
                 ;;
-            bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare)
+            bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare|\
+            bf-core|seqdiff-core|bf-core-resume-*|seqdiff-core-resume-*|accel-core-test)
                 partition=${3:-gpu-L20}
                 log_dir="$root/jobs/acceleration"
                 wall=00:20:00
-                if [[ $task == *-train || $task == seqdiff-resume-* ]]; then wall=12:00:00; fi
+                if [[ $task == *-train || $task == *-core || $task == *-resume-* ]]; then wall=12:00:00; fi
                 if [[ $task == accel-compare ]]; then wall=03:00:00; fi
+                if [[ $task == accel-core-test ]]; then wall=10:00:00; fi
                 resources=(--time="$wall" --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
                 ;;
@@ -63,23 +66,36 @@ case ${1:-help} in
         fi
         # Some GPU compute nodes have no Git. Record checkout revisions at submission.
         job_args=("$(git -C "$repo" rev-parse --verify HEAD)")
-        if [[ $task == seqdiff-resume-* ]]; then
-            prior=${task#seqdiff-resume-}
-            [[ $prior =~ ^[0-9]+$ ]] || { usage >&2; exit 2; }
-            folder="$log_dir/seqdiff-train-$prior"
+        if [[ $task == *-resume-* ]]; then
+            if [[ ! $task =~ ^(seqdiff|seqdiff-core|bf-core)-resume-([1-9][0-9]*)$ ]]; then
+                usage >&2; exit 2
+            fi
+            original=${BASH_REMATCH[1]}
+            prior=${BASH_REMATCH[2]}
+            if [[ $original == seqdiff ]]; then original=seqdiff-train; fi
+            folder="$log_dir/$original-$prior"
             if [[ -e $folder/paired_results.tar.gz ]]; then
                 printf 'ViViT job %s already exported its results\n' "$prior" >&2
                 exit 2
             fi
-            [[ -s $folder/revision.txt && -s $folder/vivit/training_state.json ]] || {
-                printf 'No committed ViViT training checkpoint for %s\n' "$prior" >&2
+            state=vivit/training_state.json
+            if [[ $original == bf-core ]]; then state=belief/codec/last.pt; fi
+            [[ -s $folder/revision.txt && -s $folder/$state ]] || {
+                printf 'No committed training checkpoint for %s\n' "$prior" >&2
                 exit 2
             }
             read -r revision < "$folder/revision.txt"
             [[ $revision =~ ^[a-f0-9]{40}$ ]] || exit 2
             job_args[0]=$revision
         fi
-        if [[ $task == gpu-smoke || $task == bf-smoke || $task == bf-train || $task == seqdiff-* || $task == accel-compare ]]; then
+        if [[ $task == accel-core-test ]]; then
+            compgen -G "$log_dir/bf-core-*/belief/complete.json" >/dev/null &&
+                compgen -G "$log_dir/seqdiff-core-*/vivit/complete.json" >/dev/null || {
+                    echo "Shared test needs successful bf-core and seqdiff-core training first" >&2
+                    exit 2
+                }
+        fi
+        if [[ $task == gpu-smoke || ( $task == bf-* && $task != bf-env ) || $task == seqdiff-* || $task == accel-* ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.
             if command -v module >/dev/null; then module load cuda-12.8; fi
             env_dir=${CASL_SEU_ENV:-$root/envs/casl}

@@ -144,6 +144,8 @@ def fingerprint(path):
 
 
 def prepare(cfg):
+    from ..acceleration_cohort import verify_cases
+
     root = Path(cfg["data_root"])
     raw = yaml.safe_load(Path(cfg["split_manifest"]).read_text(encoding="utf-8-sig"))
     seen = set()
@@ -168,12 +170,20 @@ def prepare(cfg):
                     raise ValueError("Nonfinite EF label")
     rng = np.random.default_rng(cfg["seed"])
     cohorts, files = {}, {}
+    case_lists = cfg.get("case_lists")
+    if case_lists is not None:
+        verify_cases(case_lists, raw)
+        if cfg.get("evaluation_split", "test") != "test":
+            raise ValueError("A shared cohort requires CASL's official test fold")
     excluded = set(cfg.get("reserved_validation", []))
     if not excluded <= set(raw["val"]):
         raise ValueError("Reserved benchmark cases must belong to CASL validation")
     min_frames = max(x["frames"] for x in cfg["training"].values() if isinstance(x, dict))
     splits = [("train", "train"), ("development", "val"), ("test", cfg.get("evaluation_split", "test"))]
     for group, split in splits:
+        if group == "test" and cfg.get("defer_test"):
+            cohorts[group] = []
+            continue
         eligible = sorted(
             n for n in raw[split]
             if n not in files and n not in excluded
@@ -184,6 +194,10 @@ def prepare(cfg):
         if count is not None and len(eligible) < count:
             raise ValueError(f"Insufficient {group} intersection: {len(eligible)} < {count}")
         selected = eligible if count is None else eligible[:count]
+        if case_lists is not None:
+            selected = case_lists[group]
+            if (count is not None and len(selected) != count) or not set(selected) <= set(eligible):
+                raise ValueError(f"Locked {group} is incompatible with the training config")
         if not selected:
             raise ValueError(f"Empty {group} cohort")
         cohorts[group] = selected
@@ -213,6 +227,7 @@ def prepare(cfg):
         split_sha256=sha(cfg["split_manifest"]),
         file_list_sha256=sha(cfg["file_list"]) if cfg["file_list"] else None,
         split_policy="casl_and_echonet" if cfg["file_list"] else "casl_only",
+        common_cohort=cfg.get("common_cohort"),
         fingerprint_scope="size/mtime/head-tail hash, not full HDF5 checksum",
     )
 

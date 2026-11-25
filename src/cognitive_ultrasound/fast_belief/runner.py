@@ -476,7 +476,9 @@ def fit(cfg, manifest, output, stage, device, identity, runtime, max_updates=Non
                     event="VALIDATE",
                     stage=stage,
                     epoch=epoch,
-                    scope="full-video recurrent" if stage == "filter" else "component diagnostic",
+                    scope="full-video recurrent" if stage == "filter" and cfg["evaluation"].get(
+                        "filter_validation_full", True
+                    ) else f"up to {cfg['evaluation']['component_frames']} frames",
                 )
                 value = validate(model, manifest, stage, device, lambda: guard(output, cfg))
                 improved = (

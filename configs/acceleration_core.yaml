@@ -1,0 +1,7 @@
+# Shared cohort for the independent BF and ViViT baselines (CASL official folds).
+name: acceleration_core_v1
+seed: 20261126
+train: 1024
+development: 128
+test: 128
+frames: 64

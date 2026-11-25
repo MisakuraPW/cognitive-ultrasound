@@ -206,8 +206,9 @@ def evaluate_case(
 
 def validate(model, manifest, stage, device, stop=None):
     names = manifest["cohorts"]["development"]
+    full = stage == "filter" and model.cfg["evaluation"].get("filter_validation_full", True)
     rows = [
-        evaluate_case(model, manifest, n, stage, device, stop=stop, full=stage == "filter")[0]
+        evaluate_case(model, manifest, n, stage, device, stop=stop, full=full)[0]
         for n in names
     ]
     return dict(

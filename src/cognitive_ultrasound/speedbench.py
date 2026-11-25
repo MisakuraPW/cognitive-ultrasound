@@ -137,6 +137,10 @@ def config(path):
     cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8-sig"))
     if cfg["budget"] != 14 or cfg["cases"] < 1 or cfg["frames"] < 4:
         raise ValueError("Benchmark locks14 lines, positive cases, at least4 frames")
+    if cfg.get("split", "val") not in ("val", "test"):
+        raise ValueError("Expected a validation or test benchmark split")
+    if cfg.get("split") == "test" and not (cfg.get("case_names") and cfg.get("common_cohort")):
+        raise ValueError("Test requires an explicit, locked common cohort")
     if cfg["warmup"] < 1 or cfg["repeats"] < 2 or cfg["timeout_seconds"] <= 0:
         raise ValueError("Invalid timing protocol")
     if len(set(cfg["methods"])) != len(cfg["methods"]) or any(
@@ -324,7 +328,7 @@ def worker(cfg, method, root):
     output = root / method
     output.mkdir(exist_ok=True)
     for mode in cfg["modes"]:
-        for name in manifest["cases"]:
+        for case_index, name in enumerate(manifest["cases"]):
             folder = output / mode / Path(name).stem
             folder.mkdir(parents=True, exist_ok=True)
             marker = folder / "complete.json"
@@ -334,6 +338,7 @@ def worker(cfg, method, root):
                     if sha(folder / f) != checksum:
                         raise ValueError("Committed benchmark artifact changed")
                 continue
+            disk_guard(root, cfg)
             case_start = time.perf_counter()
             seed = int.from_bytes(
                 hashlib.sha256((str(cfg["seed"]) + name).encode()).digest()[:4], "little"
@@ -365,26 +370,20 @@ def worker(cfg, method, root):
                 [],
             )
             reference_file = root / "official" / mode / Path(name).stem / "reference.npz"
-            ref = (
-                np.load(reference_file, allow_pickle=False)
-                if method != "official" and reference_file.exists()
-                else None
-            )
+            ref = None
+            if method != "official" and reference_file.exists():
+                if sha(reference_file) != read(reference_file.parent / "complete.json")["artifacts"]["reference.npz"]:
+                    raise ValueError("Reference outputs corrupted")
+                with np.load(reference_file, allow_pickle=False) as reference:
+                    ref = {key: reference[key] for key in ("mask", "prediction", "action")}
             micro = None
             micro_seconds = 0.0
             peak_ram = psutil.Process().memory_info().rss
-            if (
-                ref is not None
-                and sha(reference_file)
-                != read(reference_file.parent / "complete.json")["artifacts"]["reference.npz"]
-            ):
-                ref.close()
-                raise ValueError("Reference outputs corrupted")
             previous_prediction, previous_target = None, None
             try:
                 from .compute_lab.data import frames
 
-                file = Path(cfg["data_root"]) / "val" / name
+                file = Path(cfg["data_root"]) / manifest.get("split", "val") / name
                 with h5py.File(file) as h:
                     count = min(cfg["frames"], len(h["data/image"]))
                 if count <= warm_start:
@@ -392,7 +391,8 @@ def worker(cfg, method, root):
                 io_mode = catalog()[method].get("profile", {}).get("io", "serial")
                 with contextlib.closing(frames(file, count, io_mode)) as iterator:
                     for index in range(count):
-                        disk_guard(root, cfg)
+                        if (root / "STOP").exists():
+                            raise InterruptedError("Stop requested")
                         tick = time.perf_counter()
                         target = next(iterator)
                         io_seconds = time.perf_counter() - tick
@@ -413,7 +413,10 @@ def worker(cfg, method, root):
                             mask[:, uniform] = 1
                             return {}, dict(prediction=prediction, mask=mask, next_action=mask[0, :, 0])
 
-                        if index == warm_start and engine is not None:
+                        if (
+                            index == warm_start and engine is not None
+                            and case_index < cfg.get("micro_cases", len(manifest["cases"]))
+                        ):
                             start_micro = time.perf_counter()
                             state = engine.capture()
                             for _ in range(cfg["warmup"]):
@@ -493,8 +496,7 @@ def worker(cfg, method, root):
                             flush=True,
                         )
             finally:
-                if ref is not None:
-                    ref.close()
+                del ref
             atomic(folder / "frames.json", rows)
             np.savez_compressed(folder / "samples.npz", **previews)
             if method == "official":
@@ -610,6 +612,7 @@ def report(root):
 
 def run(path, root, resume=False):
     cfg = config(path)
+    fold = cfg.get("split", "val")
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     with run_lock(root):
@@ -647,13 +650,13 @@ def run(path, root, resume=False):
                 raise ValueError("Code/config/assets changed; fresh output required")
             manifest = read(root / "manifest.json")
             for n, value in manifest["files"].items():
-                if fingerprint(Path(cfg["data_root"]) / "val" / n) != value:
+                if fingerprint(Path(cfg["data_root"]) / fold / n) != value:
                     raise ValueError("Benchmark data changed")
         else:
             split = yaml.safe_load(Path(cfg["split_manifest"]).read_text(encoding="utf-8-sig"))
-            names = sorted(split["val"])
+            names = sorted(split[fold])
             if len(names) != len(set(names)) or set(names) & (
-                set(split["test"]) | set(split["train"])
+                set(split["train"]) | set(split["test" if fold == "val" else "val"])
             ):
                 raise ValueError("Split overlap")
             if len(names) < cfg["cases"]:
@@ -662,14 +665,15 @@ def run(path, root, resume=False):
             if selected is None:
                 selected = np.random.default_rng(cfg["seed"]).permutation(names).tolist()[: cfg["cases"]]
             elif len(selected) != cfg["cases"] or len(set(selected)) != len(selected) or not set(selected) <= set(names):
-                raise ValueError("Explicit benchmark cases must be distinct CASL validation cases")
+                raise ValueError(f"Explicit benchmark cases must be distinct CASL {fold} cases")
             if any(Path(n).name != n or "/" in n or "\\" in n for n in selected):
                 raise ValueError("Invalid video filename")
             manifest = dict(
                 cases=selected,
-                files={n: fingerprint(Path(cfg["data_root"]) / "val" / n) for n in selected},
+                files={n: fingerprint(Path(cfg["data_root"]) / fold / n) for n in selected},
                 split_sha256=sha(cfg["split_manifest"]),
-                test_used=False,
+                split=fold,
+                test_used=fold == "test",
             )
             atomic(root / "manifest.json", manifest)
             atomic(root / "identity.json", identity)
@@ -721,6 +725,8 @@ def run(path, root, resume=False):
                 NVIDIA_TF32_OVERRIDE="0",
                 XLA_PYTHON_CLIENT_PREALLOCATE="false",
             )
+            if backend == "torch" and cfg.get("torch_isolated_runtime"):
+                env.pop("LD_LIBRARY_PATH", None)
             log = root / f"{method}.console.log"
             begin = time.perf_counter()
             with log.open("a", encoding="utf-8") as f:

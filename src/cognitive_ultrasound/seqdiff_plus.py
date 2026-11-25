@@ -13,6 +13,7 @@ import numpy as np
 import yaml
 from keras import layers, ops
 
+from .acceleration_cohort import verify_cases
 from .preparation.common import atomic_json, read_json
 from .preparation.suite import run_lock
 from .provenance import sha256
@@ -72,7 +73,7 @@ def load_predictor(path):
     return model
 
 
-def lock_split(data, split_file, reserved, size, seed, dev_size):
+def lock_split(data, split_file, reserved, size, seed, dev_size, cohort=None):
     splits = yaml.safe_load(split_file.read_text(encoding="utf-8"))
     groups = {fold: set(splits[fold]) for fold in ("train", "val", "test")}
     if any(len(groups[fold]) != len(splits[fold]) for fold in groups) or (
@@ -86,6 +87,11 @@ def lock_split(data, split_file, reserved, size, seed, dev_size):
         size = len(groups["train"])
     train = rng.permutation(sorted(groups["train"])).tolist()[:size]
     dev = rng.permutation(sorted(groups["val"] - set(reserved))).tolist()[:dev_size]
+    if cohort is not None:
+        verify_cases(cohort, splits)
+        train, dev = cohort["train"], cohort["development"]
+        if set(dev) & set(reserved):
+            raise ValueError("Locked development cases overlap benchmark reservations")
     if len(train) != size or len(dev) != dev_size:
         raise ValueError("Insufficient locked cases")
     files = {}
@@ -162,6 +168,9 @@ def fit(args):
         data=str(args.data.resolve()), split_sha256=sha256(args.split), reserved=args.reserved,
         source_sha256=sha256(__file__), keras=keras.__version__, jax=jax.__version__,
     )
+    cohort = getattr(args, "cohort", None)
+    if cohort is not None:
+        identity["common_cohort"] = cohort["identity"]
     if manifest_file.exists():
         manifest = read_json(manifest_file)
         if manifest["identity"] != identity:
@@ -170,7 +179,10 @@ def fit(args):
             if fingerprint(args.data / relative) != recorded:
                 raise ValueError(f"Training input changed: {relative}")
     else:
-        manifest = lock_split(args.data, args.split, args.reserved, args.cases, args.seed, args.development)
+        manifest = lock_split(
+            args.data, args.split, args.reserved, args.cases, args.seed, args.development,
+            cohort=cohort["cases"] if cohort is not None else None,
+        )
         manifest["identity"] = identity
         atomic_json(manifest_file, manifest)
 
