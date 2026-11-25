@@ -14,7 +14,12 @@ source_data="$share/$dataset"
 target_data="$nvme/$dataset"
 
 hostname
-git rev-parse HEAD
+if [[ -n ${3:-} ]]; then
+    printf 'submitted_repo_rev=%s\n' "$3"
+fi
+if command -v git >/dev/null; then
+    printf 'compute_repo_rev=%s\n' "$(git rev-parse --verify HEAD)"
+fi
 
 check_layout() {
     local directory=$1 split expected actual
@@ -78,8 +83,12 @@ case $task in
         printf 'DATA_PREP_OK\nSHARE %s\nNVMe  %s\n' "$source_data" "$target_data"
         ;;
     cpu-check)
-        git -C vendor/casl rev-parse HEAD
-        git -C vendor/casl/zea rev-parse HEAD
+        if [[ -n ${5:-} ]]; then
+            printf 'submitted_casl_rev=%s\nsubmitted_zea_rev=%s\n' "$4" "$5"
+        elif command -v git >/dev/null; then
+            git -C vendor/casl rev-parse HEAD
+            git -C vendor/casl/zea rev-parse HEAD
+        fi
         py="$env_dir/bin/python"
         "$py" -VV
         "$py" -u scripts/seu_casl_check.py cpu "$source_data" "$target_data"

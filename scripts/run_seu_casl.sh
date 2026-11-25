@@ -46,11 +46,18 @@ case ${1:-help} in
             printf 'School submitter not found: %s\n' "$submitter" >&2
             exit 1
         fi
+        # Some GPU compute nodes have no Git. Record checkout revisions at submission.
+        revisions=("$(git -C "$repo" rev-parse --verify HEAD)")
+        if [[ $task == cpu-check ]]; then
+            for dependency in vendor/casl vendor/casl/zea; do
+                revisions+=("$(git -C "$repo/$dependency" rev-parse --verify HEAD)")
+            done
+        fi
         mkdir -p -- "$log_dir"
         printf 'Log directory: %s\n' "$log_dir"
         exec "$submitter" --job-name="casl-$task" --partition="$partition" \
             "${resources[@]}" --output="$log_dir/%x-%j.log" \
-            "$repo/scripts/seu_casl_job.sh" "$task" "$repo"
+            "$repo/scripts/seu_casl_job.sh" "$task" "$repo" "${revisions[@]}"
         ;;
     status|logs)
         if (( $# != 2 )) || [[ ! $2 =~ ^[0-9]+$ ]]; then usage >&2; exit 2; fi
