@@ -1,0 +1,3 @@
+interface:
+  display_name: "东南大学智算 WebSSH"
+  short_description: "复用学校登录，通过后台 WebSSH 同步代码、提交及核查 CASL 作业"

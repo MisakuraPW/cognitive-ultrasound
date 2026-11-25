@@ -1,6 +1,6 @@
 # Project working agreements
 
-- 东南大学智算平台使用[后台 WebSSH](docs/seu_webssh_client.md)。已有专用 Edge 时运行 `node scripts/seu_portal/client.cjs session`，按用户请求复用会话提交作业、查询历史及按号读取日志。用户在学校页面完成身份认证。查历史失败的作业先读日志，重新排队需要用户要求。
+- 东南大学智算平台可使用 `$seu-webssh` 和[后台 WebSSH 指南](docs/seu_webssh_client.md)。已有专用 Edge 时运行 `node scripts/seu_portal/client.cjs session`，按用户请求复用会话提交作业、查询历史及按号读取日志。用户在学校页面完成身份认证。查历史失败的作业先读日志，重新排队需要用户要求。
 
 - Authorized2026-10-29: user requests acceleration code and a unified benchmark only, informed by supplied20261028 research-mainline Word and17-paper local source pack. Reuse existing CASL/JAX/Torch engines and assets; no cloud runs, model training, new innovation experiments, or full paper-only reimplementation this turn. New entry scripts/run_speedbench.sh, docs/speedbench.md. Fixed-observation and own-policy14-line protocols, existing engineering/precision/sampling profiles plus fixed-warm-span coarse16/8/4. Existing trained BF optional; senior original/SeqDiff+ missing assets explicit. Numerical equivalence and baseline adoption never inferred from category or speed/quality plots. Preserve historical identities/results and do not restart closed preparation/dynamic-budget batches.
 
