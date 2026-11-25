@@ -93,6 +93,25 @@ case $task in
         "$py" -VV
         "$py" -u scripts/seu_casl_check.py cpu "$source_data" "$target_data"
         ;;
+    bf-env)
+        torch_env="$root/envs/fast-belief"
+        mkdir -p -- "$root/envs"
+        exec 9>"$root/envs/.fast-belief-install.lock"
+        flock -n 9
+        export MPLBACKEND=Agg
+        base_python="$env_dir/bin/python"
+        if [[ ! -x $torch_env/bin/python ]]; then
+            "$base_python" -m venv --system-site-packages "$torch_env"
+        fi
+        py="$torch_env/bin/python"
+        if ! "$py" -c 'import torch; assert torch.__version__=="2.8.0+cu128"'; then
+            "$py" -m pip --isolated install --no-cache-dir --timeout 30 --retries 2 \
+                --index-url https://download.pytorch.org/whl/cu128 'torch==2.8.0+cu128'
+        fi
+        export PYTHONPATH="$PWD/src"
+        "$py" -c 'import torch; from cognitive_ultrasound.fast_belief import runner; assert torch.version.cuda == "12.8"; print(torch.__version__, torch.version.cuda, torch.__file__)'
+        echo "BF_ENV_OK $torch_env"
+        ;;
     gpu-smoke|bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare)
         module load anaconda3-2024.10-1
         source "$(conda info --base)/etc/profile.d/conda.sh"

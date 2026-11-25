@@ -8,7 +8,7 @@ usage() {
     printf '%s\n' \
         'Usage:' \
         '  bash scripts/run_seu_casl.sh submit TASK [partition]' \
-        '  Tasks: data-prep cpu-check gpu-smoke bf-smoke bf-train seqdiff-smoke seqdiff-train seqdiff-resume-JOB_ID accel-compare' \
+        '  Tasks: data-prep cpu-check gpu-smoke bf-env bf-smoke bf-train seqdiff-smoke seqdiff-train seqdiff-resume-JOB_ID accel-compare' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -28,6 +28,11 @@ case ${1:-help} in
             cpu-check)
                 partition=${3:-6126-24C-192G}
                 resources=(--time=00:20:00 --cpus-per-task=2)
+                ;;
+            bf-env)
+                partition=${3:-6126-24C-192G}
+                log_dir="$root/jobs/acceleration"
+                resources=(--time=00:45:00 --cpus-per-task=2)
                 ;;
             gpu-smoke)
                 partition=${3:-gpu-L20}
@@ -74,7 +79,7 @@ case ${1:-help} in
             [[ $revision =~ ^[a-f0-9]{40}$ ]] || exit 2
             job_args[0]=$revision
         fi
-        if [[ $task == gpu-smoke || $task == bf-* || $task == seqdiff-* || $task == accel-compare ]]; then
+        if [[ $task == gpu-smoke || $task == bf-smoke || $task == bf-train || $task == seqdiff-* || $task == accel-compare ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.
             if command -v module >/dev/null; then module load cuda-12.8; fi
             env_dir=${CASL_SEU_ENV:-$root/envs/casl}
