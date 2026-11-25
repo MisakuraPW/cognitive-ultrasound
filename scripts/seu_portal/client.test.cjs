@@ -94,6 +94,9 @@ test('a read can reconnect once; an uncertain submission is never sent again', a
 test('GPU job reaches its checks when the compute node has no Git', {skip: !bash}, () => {
   const working = fs.mkdtempSync(path.join(os.tmpdir(), 'seu-no-git-'));
   try {
+    const sharedTools = path.join(working,'shared-tools');
+    fs.mkdirSync(sharedTools);
+    fs.writeFileSync(path.join(sharedTools,'git'),'#!/bin/bash\necho FIXTURE_SHARED_GIT\n',{mode:0o755});
     const mock = [
       'set -e',
       'export PATH=/usr/bin:/bin:$PATH',
@@ -105,10 +108,10 @@ test('GPU job reaches its checks when the compute node has no Git', {skip: !bash
       'hostname() { echo fixture-node; }',
       'module() { :; }',
       'conda() { if [[ $1 == info ]]; then printf "%s/env\\n" "$PWD"; fi; }',
-      'nvidia-smi() { printf "FIXTURE_NVIDIA_SMI LD=%s\\n" "$LD_LIBRARY_PATH"; }',
+      'nvidia-smi() { printf "FIXTURE_NVIDIA_SMI LD=%s\\nXLA=%s\\nPATH=%s\\n" "$LD_LIBRARY_PATH" "$XLA_FLAGS" "$PATH"; }',
       'python() { printf "FIXTURE_PYTHON %s\\n" "$*"; }',
       'PATH=/fixture-without-git; hash -r',
-      'source "$SEU_FIXTURE_JOB" gpu-smoke "$PWD" abcdef /fixture/cudnn',
+      'source "$SEU_FIXTURE_JOB" gpu-smoke "$PWD" abcdef /fixture/cudnn /fixture/toolkit "$PWD/shared-tools/git"',
     ].join('\n');
     const job = path.resolve(__dirname, '..', 'seu_casl_job.sh').replaceAll('\\','/');
     const result = spawnSync(bash, ['--noprofile','--norc'], {
@@ -116,7 +119,10 @@ test('GPU job reaches its checks when the compute node has no Git', {skip: !bash
     });
     assert.equal(result.status,0,result.stderr);
     assert.match(result.stdout,/submitted_repo_rev=abcdef/);
-    assert.match(result.stdout,/FIXTURE_NVIDIA_SMI LD=\/fixture\/cudnn/);
+    assert.match(result.stdout,/FIXTURE_SHARED_GIT/);
+    assert.match(result.stdout,/FIXTURE_NVIDIA_SMI LD=\/fixture\/cudnn:\/fixture\/toolkit\/lib64/);
+    assert.match(result.stdout,/--xla_gpu_cuda_data_dir=\/fixture\/toolkit/);
+    assert.match(result.stdout,/PATH=\/fixture\/toolkit\/bin:/);
     assert.match(result.stdout,/FIXTURE_PYTHON scripts\/check_gpu.py/);
     assert.match(result.stdout,/FIXTURE_PYTHON -m cognitive_ultrasound evaluate/);
     assert.match(result.stdout,/FIXTURE_PYTHON scripts\/seu_casl_check.py gpu/);
@@ -132,10 +138,18 @@ test('the login-node launcher passes the submission revisions to the batch worke
     const envBin = path.join(dir,'env','bin');
     fs.mkdirSync(envBin,{recursive:true});
     fs.writeFileSync(path.join(envBin,'python'),'#!/usr/bin/env bash\necho /fixture/cudnn\n',{mode:0o755});
+    for (const item of ['bin/nvcc','bin/ptxas','bin/nvlink','nvvm/libdevice/libdevice.10.bc','lib64/libcudart.so.12']) {
+      const file = path.join(dir,'cuda',item);
+      fs.mkdirSync(path.dirname(file),{recursive:true});
+      fs.writeFileSync(file,item.startsWith('bin/') ? '#!/usr/bin/env bash\nexit 0\n' : 'fixture',{mode:0o755});
+    }
+    fs.writeFileSync(path.join(shims,'git'),'#!/usr/bin/env bash\necho git-fixture\n',{mode:0o755});
     const launcher = path.resolve(__dirname,'..','run_seu_casl.sh').replaceAll('\\','/');
     for (const task of ['gpu-smoke','cpu-check']) {
       const script = [
         'export PATH="$PWD/shims:/usr/bin:/bin:$PATH" CASL_SEU_ROOT="$PWD/casl" CASL_SEU_ENV="$PWD/env"',
+        'export CASL_SEU_CUDA_ROOT="$PWD/cuda"',
+        'export CASL_SEU_GIT_BIN="$PWD/shims/git"',
         'git() { case "$2" in */vendor/casl/zea) echo zea-rev;; */vendor/casl) echo casl-rev;; *) echo repo-rev;; esac; }',
         'source "$SEU_TEST_SUBMIT" submit "$SEU_TEST_TASK"',
       ].join('\n');
@@ -146,7 +160,9 @@ test('the login-node launcher passes the submission revisions to the batch worke
       assert.ok(lines.includes(task));
       if (task === 'gpu-smoke') {
         assert.ok(lines.includes('--gres=gpu:1'));
-        assert.deepEqual(lines.slice(-2),['repo-rev','/fixture/cudnn']);
+        assert.deepEqual(lines.slice(-4,-2),['repo-rev','/fixture/cudnn']);
+        assert.match(lines.at(-2),/\/cuda$/);
+        assert.match(lines.at(-1),/\/shims\/git$/);
       } else {
         assert.deepEqual(lines.slice(-3),['repo-rev','casl-rev','zea-rev']);
       }

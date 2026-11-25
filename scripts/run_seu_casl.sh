@@ -47,23 +47,51 @@ case ${1:-help} in
             exit 1
         fi
         # Some GPU compute nodes have no Git. Record checkout revisions at submission.
-        revisions=("$(git -C "$repo" rev-parse --verify HEAD)")
+        job_args=("$(git -C "$repo" rev-parse --verify HEAD)")
         if [[ $task == gpu-smoke ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.
             if command -v module >/dev/null; then module load cuda-12.8; fi
             env_dir=${CASL_SEU_ENV:-$root/envs/casl}
             cudnn_dir=$("$env_dir/bin/python" "$repo/scripts/seu_casl_cudnn.py" "$root")
-            revisions+=("$cudnn_dir")
+            cuda_dir=${CASL_SEU_CUDA_ROOT:-/seu_share/apps/cuda-12.8}
+            for program in nvcc ptxas nvlink; do
+                [[ -x $cuda_dir/bin/$program ]] || { echo "Missing CUDA program: $cuda_dir/bin/$program" >&2; exit 1; }
+            done
+            if [[ ! -r $cuda_dir/nvvm/libdevice/libdevice.10.bc || ! -r $cuda_dir/lib64/libcudart.so.12 ]]; then
+                echo "Incomplete CUDA toolkit at $cuda_dir (libdevice.10.bc or libcudart.so.12 missing)" >&2
+                exit 1
+            fi
+            printf 'Verified CUDA toolkit and XLA libdevice in %s\n' "$cuda_dir"
+            # The model verifies both pristine upstream checkouts with real Git at runtime.
+            shared_git=${CASL_SEU_GIT_BIN:-}
+            if [[ -z $shared_git ]]; then
+                for candidate in "$env_dir/bin/git" /seu_share/apps/git*/bin/git /seu_share/apps/anaconda3-2024.10-1/bin/git; do
+                    if [[ -x $candidate ]]; then shared_git=$candidate; break; fi
+                done
+            fi
+            if [[ -z $shared_git ]]; then
+                login_git=$(type -P git)
+                digest=$(sha256sum -- "$login_git")
+                git_dir="$root/runtime/git/${digest%% *}/bin"
+                mkdir -p -- "$git_dir"
+                shared_git="$git_dir/git"
+                if ! cmp -s -- "$login_git" "$shared_git"; then
+                    staging=$(mktemp "$git_dir/.git.XXXXXX")
+                    cp -- "$login_git" "$staging" && chmod 755 "$staging" && mv -f -- "$staging" "$shared_git"
+                fi
+            fi
+            "$shared_git" --version
+            job_args+=("$cudnn_dir" "$cuda_dir" "$shared_git")
         elif [[ $task == cpu-check ]]; then
             for dependency in vendor/casl vendor/casl/zea; do
-                revisions+=("$(git -C "$repo/$dependency" rev-parse --verify HEAD)")
+                job_args+=("$(git -C "$repo/$dependency" rev-parse --verify HEAD)")
             done
         fi
         mkdir -p -- "$log_dir"
         printf 'Log directory: %s\n' "$log_dir"
         exec "$submitter" --job-name="casl-$task" --partition="$partition" \
             "${resources[@]}" --output="$log_dir/%x-%j.log" \
-            "$repo/scripts/seu_casl_job.sh" "$task" "$repo" "${revisions[@]}"
+            "$repo/scripts/seu_casl_job.sh" "$task" "$repo" "${job_args[@]}"
         ;;
     status|logs)
         if (( $# != 2 )) || [[ ! $2 =~ ^[0-9]+$ ]]; then usage >&2; exit 2; fi

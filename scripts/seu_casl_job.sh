@@ -102,8 +102,15 @@ case $task in
         if [[ -z $cudnn_dir ]]; then
             cudnn_dir=$(python scripts/seu_casl_cudnn.py "$root")
         fi
-        export LD_LIBRARY_PATH="$cudnn_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-        printf 'CASL cuDNN directory: %s\n' "$cudnn_dir"
+        cuda_dir=${5:-${CASL_SEU_CUDA_ROOT:-/seu_share/apps/cuda-12.8}}
+        export CUDA_HOME="$cuda_dir" CUDA_PATH="$cuda_dir" PATH="$cuda_dir/bin:$PATH"
+        export LD_LIBRARY_PATH="$cudnn_dir:$cuda_dir/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        export XLA_FLAGS="${XLA_FLAGS:+$XLA_FLAGS }--xla_gpu_cuda_data_dir=$cuda_dir"
+        if [[ -n ${6:-} ]]; then
+            export PATH="$PATH:${6%/*}"
+            git --version
+        fi
+        printf 'CASL cuDNN directory: %s\nCUDA toolkit and XLA data: %s\n' "$cudnn_dir" "$cuda_dir"
 
         out="$root/jobs/acceptance/gpu-$SLURM_JOB_ID"
         mkdir -p -- "$out"
