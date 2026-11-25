@@ -36,7 +36,19 @@ if [[ $(pwd -P) != "$checkout" ]]; then
     exec bash scripts/seu_acceleration.sh "$@"
 fi
 out="$root/jobs/acceleration/$task-$SLURM_JOB_ID"
-mkdir -p -- "$out"
+if [[ $task == seqdiff-resume-* ]]; then
+    out="$root/jobs/acceleration/seqdiff-train-${task#seqdiff-resume-}"
+    [[ $(cat "$out/revision.txt") == "$revision" ]]
+else
+    mkdir -p -- "$out"
+fi
+exec 8>"$out/.job.lock"
+flock -n 8
+benchmark="$out/benchmark"
+if [[ $task == seqdiff-resume-* && -d $benchmark ]]; then
+    # Benchmark identity includes the physical GPU. Keep the old attempt intact.
+    benchmark="$out/benchmark-$SLURM_JOB_ID"
+fi
 printf 'experiment_output=%s\n' "$out"
 export MPLBACKEND=Agg CUBLAS_WORKSPACE_CONFIG=:4096:8 JAX_PLATFORMS=cuda
 export KERAS_BACKEND=jax
@@ -58,11 +70,14 @@ if [[ $task == bf-* || $task == accel-compare ]]; then
     fi
 fi
 
-"$jax_python" -u scripts/seu_acceleration.py configure "$task" "$out" "$data" "$jax_python" "$torch_python"
+if [[ $task != seqdiff-resume-* ]]; then
+    printf '%s\n' "$revision" > "$out/revision.txt"
+    "$jax_python" -u scripts/seu_acceleration.py configure "$task" "$out" "$data" "$jax_python" "$torch_python"
+fi
 case $task in
     bf-*) "$torch_python" -u -m cognitive_ultrasound.fast_belief run --config "$out/training.json" --output "$out/belief" ;;
     seqdiff-*) "$jax_python" -u scripts/seu_acceleration.py train-vivit "$out" ;;
     accel-compare) ;;
 esac
-"$jax_python" -u -m cognitive_ultrasound.speedbench run --config "$out/benchmark.json" --output "$out/benchmark"
-"$jax_python" -u scripts/seu_acceleration.py summarize "$out"
+"$jax_python" -u -m cognitive_ultrasound.speedbench run --config "$out/benchmark.json" --output "$benchmark"
+"$jax_python" -u scripts/seu_acceleration.py summarize "$out" --benchmark "$benchmark"

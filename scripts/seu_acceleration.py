@@ -73,8 +73,11 @@ def configure(task, output, data, jax_python, torch_python):
             belief_checkpoint=None, vivit_checkpoint=str(output / "vivit/best.keras"),
             methods=["official", "jax_coarse4", "seqdiff_plus", "interpolation"],
         )
-        write(output / "training.json", dict(cases=8 if smoke else 512, epochs=1 if smoke else 12,
-                                             batch=4 if smoke else 8))
+        write(output / "training.json", dict(
+            cases=8 if smoke else None, epochs=1 if smoke else 30, batch=4 if smoke else 8,
+            development=2 if smoke else 64, min_epochs=1 if smoke else 10,
+            patience=6, checkpoint_updates=100,
+        ))
     write(output / "benchmark.json", bench)
     print(f"{task} benchmark={names} frames={bench['frames']}", flush=True)
 
@@ -90,16 +93,15 @@ def train_vivit(output):
     ))
 
 
-def summarize(output):
-    status = json.loads((output / "benchmark/status.json").read_text())
+def summarize(output, bench):
+    status = json.loads((bench / "status.json").read_text())
     print(json.dumps(status["methods"], ensure_ascii=False))
-    for marker in sorted((output / "benchmark").glob("*/*/*/complete.json")):
+    for marker in sorted(bench.glob("*/*/*/complete.json")):
         record = json.loads(marker.read_text())
         fields = ("method", "case", "mode", "warm", "quality", "late_unobserved_mae")
         print(json.dumps({key: record[key] for key in fields}))
     if status["status"] != "completed":
         raise RuntimeError("One or more benchmark methods did not complete")
-    bench = output / "benchmark"
     files = [
         output / "benchmark.json",
         *(bench / name for name in ("manifest.json", "identity.json", "status.json", "summary.csv", "speed_quality.png")),
@@ -107,14 +109,16 @@ def summarize(output):
         *sorted(bench.glob("*/*/*/frames.json")),
     ]
     archive = output / "paired_results.tar.gz"
-    with tarfile.open(archive, "w:gz") as package:
+    temporary = archive.with_suffix(".tmp")
+    with tarfile.open(temporary, "w:gz") as package:
         for member in files:
             package.add(member, arcname=member.relative_to(output))
-    with tarfile.open(archive, "r:gz") as package:
+    with tarfile.open(temporary, "r:gz") as package:
         for member in files:
             archived = package.extractfile(member.relative_to(output).as_posix())
             if archived.read() != member.read_bytes():
                 raise ValueError(f"Archive validation failed: {member}")
+    temporary.replace(archive)
     print(f"archive={archive} bytes={archive.stat().st_size} sha256={sha256(archive)}")
     print(f"SEU_ACCELERATION_OK {output}", flush=True)
 
@@ -130,6 +134,7 @@ def main():
     setup.add_argument("torch_python")
     result = action.add_parser("summarize")
     result.add_argument("output", type=Path)
+    result.add_argument("--benchmark", type=Path)
     vivit = action.add_parser("train-vivit")
     vivit.add_argument("output", type=Path)
     args = parser.parse_args()
@@ -138,7 +143,7 @@ def main():
     elif args.action == "train-vivit":
         train_vivit(args.output)
     else:
-        summarize(args.output)
+        summarize(args.output, args.benchmark or args.output / "benchmark")
 
 
 if __name__ == "__main__":

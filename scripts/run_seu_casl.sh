@@ -8,7 +8,7 @@ usage() {
     printf '%s\n' \
         'Usage:' \
         '  bash scripts/run_seu_casl.sh submit TASK [partition]' \
-        '  Tasks: data-prep cpu-check gpu-smoke bf-smoke bf-train seqdiff-smoke seqdiff-train accel-compare' \
+        '  Tasks: data-prep cpu-check gpu-smoke bf-smoke bf-train seqdiff-smoke seqdiff-train seqdiff-resume-JOB_ID accel-compare' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -34,11 +34,11 @@ case ${1:-help} in
                 resources=(--time=00:30:00 --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
                 ;;
-            bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|accel-compare)
+            bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare)
                 partition=${3:-gpu-L20}
                 log_dir="$root/jobs/acceleration"
                 wall=00:20:00
-                if [[ $task == *-train ]]; then wall=12:00:00; fi
+                if [[ $task == *-train || $task == seqdiff-resume-* ]]; then wall=12:00:00; fi
                 if [[ $task == accel-compare ]]; then wall=03:00:00; fi
                 resources=(--time="$wall" --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
@@ -58,6 +58,22 @@ case ${1:-help} in
         fi
         # Some GPU compute nodes have no Git. Record checkout revisions at submission.
         job_args=("$(git -C "$repo" rev-parse --verify HEAD)")
+        if [[ $task == seqdiff-resume-* ]]; then
+            prior=${task#seqdiff-resume-}
+            [[ $prior =~ ^[0-9]+$ ]] || { usage >&2; exit 2; }
+            folder="$log_dir/seqdiff-train-$prior"
+            if [[ -e $folder/paired_results.tar.gz ]]; then
+                printf 'ViViT job %s already exported its results\n' "$prior" >&2
+                exit 2
+            fi
+            [[ -s $folder/revision.txt && -s $folder/vivit/training_state.json ]] || {
+                printf 'No committed ViViT training checkpoint for %s\n' "$prior" >&2
+                exit 2
+            }
+            read -r revision < "$folder/revision.txt"
+            [[ $revision =~ ^[a-f0-9]{40}$ ]] || exit 2
+            job_args[0]=$revision
+        fi
         if [[ $task == gpu-smoke || $task == bf-* || $task == seqdiff-* || $task == accel-compare ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.
             if command -v module >/dev/null; then module load cuda-12.8; fi

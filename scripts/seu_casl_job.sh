@@ -93,7 +93,7 @@ case $task in
         "$py" -VV
         "$py" -u scripts/seu_casl_check.py cpu "$source_data" "$target_data"
         ;;
-    gpu-smoke|bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|accel-compare)
+    gpu-smoke|bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|seqdiff-resume-*|accel-compare)
         module load anaconda3-2024.10-1
         source "$(conda info --base)/etc/profile.d/conda.sh"
         conda activate "$env_dir"
