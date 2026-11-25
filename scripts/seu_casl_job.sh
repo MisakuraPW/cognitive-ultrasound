@@ -93,7 +93,7 @@ case $task in
         "$py" -VV
         "$py" -u scripts/seu_casl_check.py cpu "$source_data" "$target_data"
         ;;
-    gpu-smoke|bf-smoke|bf-train)
+    gpu-smoke|bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|accel-compare)
         module load anaconda3-2024.10-1
         source "$(conda info --base)/etc/profile.d/conda.sh"
         conda activate "$env_dir"
@@ -116,9 +116,9 @@ case $task in
         mkdir -p -- "$out"
         nvidia-smi
         export NVIDIA_TF32_OVERRIDE=0 XLA_PYTHON_CLIENT_PREALLOCATE=false PYTHONUNBUFFERED=1
-        if [[ $task == bf-* ]]; then
+        if [[ $task != gpu-smoke ]]; then
             export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
-            exec bash scripts/seu_acceleration.sh "$task" "$root" "$target_data" "$env_dir/bin/python"
+            exec bash scripts/seu_acceleration.sh "$task" "$root" "$target_data" "$env_dir/bin/python" "$3"
         fi
         if ! python scripts/check_gpu.py --output "$out/gpu.json"; then
             module avail cuda cudnn 2>&1 || true

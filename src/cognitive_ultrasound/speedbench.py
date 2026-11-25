@@ -120,9 +120,10 @@ def catalog():
     )
     result["interpolation"] = dict(kind="control", category="C")
     result["seqdiff_plus"] = dict(
-        kind="unavailable",
+        kind="casl_seqdiff_plus",
         category="C",
-        reason="No verified compatible ViViT weights; not silently replaced by an untrained predictor",
+        profile=CoarseProfile("seqdiff_plus", steps=4, dps=4).record(),
+        requires="GPU-trained 112x112 ViViT with verified receipt",
     )
     result["senior_original"] = dict(
         kind="unavailable",
@@ -144,6 +145,8 @@ def config(path):
         raise ValueError("Unknown/duplicate methods")
     if cfg["methods"][0] != "official" or cfg["modes"] != ["fixed", "closed_loop"]:
         raise ValueError("Official reference first; both observation protocols required")
+    if "seqdiff_plus" in cfg["methods"] and ("jax_coarse4" not in cfg["methods"] or cfg["frames"] < 6):
+        raise ValueError("ViViT comparison requires the nonlearned 4-step control and at least six frames")
     return cfg
 
 
@@ -281,11 +284,15 @@ def build(cfg, method, root):
         raise FileNotFoundError(
             "Missing verified existing Torch weight export; no retraining or downloads"
         )
-    from .compute_lab.engines import JaxEngine, TorchEngine
+    from .compute_lab.engines import JaxEngine, TorchEngine, ViViTEngine
 
     fields = Profile.__dataclass_fields__
-    cls = CoarseProfile if spec["kind"] == "casl_coarse" else Profile
+    cls = CoarseProfile if spec["kind"] in ("casl_coarse", "casl_seqdiff_plus") else Profile
     p = cls(**{k: v for k, v in spec["profile"].items() if k in fields})
+    if spec["kind"] == "casl_seqdiff_plus":
+        if not cfg.get("vivit_checkpoint"):
+            raise FileNotFoundError("SeqDiff+ requires trained ViViT weights")
+        return ViViTEngine(cfg, p, cfg["budget"], None)
     return (JaxEngine if p.backend == "jax" else TorchEngine)(
         cfg, p, cfg["budget"], Path(cfg["torch_export"]) if cfg.get("torch_export") else None
     )
@@ -312,6 +319,8 @@ def worker(cfg, method, root):
     )
     manifest = read(root / "manifest.json")
     uniform = np.linspace(0, 111, 14).round().astype(int)
+    has_vivit = "seqdiff_plus" in cfg["methods"]
+    warm_start = 5 if has_vivit else 2
     output = root / method
     output.mkdir(exist_ok=True)
     for mode in cfg["modes"]:
@@ -362,6 +371,7 @@ def worker(cfg, method, root):
                 else None
             )
             micro = None
+            micro_seconds = 0.0
             peak_ram = psutil.Process().memory_info().rss
             if (
                 ref is not None
@@ -377,8 +387,8 @@ def worker(cfg, method, root):
                 file = Path(cfg["data_root"]) / "val" / name
                 with h5py.File(file) as h:
                     count = min(cfg["frames"], len(h["data/image"]))
-                if count < 4:
-                    raise ValueError("Locked video shorter than4 frames")
+                if count <= warm_start:
+                    raise ValueError("Locked video is shorter than the warmup protocol")
                 io_mode = catalog()[method].get("profile", {}).get("io", "serial")
                 with contextlib.closing(frames(file, count, io_mode)) as iterator:
                     for index in range(count):
@@ -403,7 +413,8 @@ def worker(cfg, method, root):
                             mask[:, uniform] = 1
                             return {}, dict(prediction=prediction, mask=mask, next_action=mask[0, :, 0])
 
-                        if index == 2 and engine is not None:
+                        if index == warm_start and engine is not None:
+                            start_micro = time.perf_counter()
                             state = engine.capture()
                             for _ in range(cfg["warmup"]):
                                 engine.reinstate(state)
@@ -416,6 +427,7 @@ def worker(cfg, method, root):
                                 timings.append(time.perf_counter() - t0)
                             engine.reinstate(state)
                             micro = statistics(timings)
+                            micro_seconds = time.perf_counter() - start_micro
                             # Microbenchmark is diagnostic overhead, excluded from sequence timing.
                             tick = time.perf_counter() - io_seconds
                         t0 = time.perf_counter()
@@ -492,7 +504,7 @@ def worker(cfg, method, root):
                     mask=reference_masks,
                     action=reference_actions,
                 )
-            warm = rows[2:]
+            warm = rows[warm_start:]
             value = dict(
                 method=method,
                 mode=mode,
@@ -501,10 +513,12 @@ def worker(cfg, method, root):
                 setup_seconds=setup_seconds,
                 cold_frame_s=rows[0]["model_wall_s"],
                 first_warm_frame_s=rows[1]["model_wall_s"],
+                first_full_context_s=rows[4]["model_wall_s"] if has_vivit else None,
                 warm=statistics([r["model_wall_s"] for r in warm]),
                 complete_frames=statistics([r["full_frame_s"] for r in rows]),
                 micro=micro,
                 case_wall_including_micro_s=time.perf_counter() - case_start,
+                case_wall_excluding_micro_s=time.perf_counter() - case_start - micro_seconds,
                 sampled_peak_ram_rss=peak_ram,
                 peak_vram=engine.peak() if engine is not None else None,
                 quality={
@@ -515,7 +529,7 @@ def worker(cfg, method, root):
                 early_unobserved_mae=float(np.mean([r["unobserved_mae"] for r in rows[:count // 2]])),
                 late_unobserved_mae=float(np.mean([r["unobserved_mae"] for r in rows[count // 2:]])),
                 rng_protocol="JAX-native same seed"
-                if method.startswith("jax") or method == "official"
+                if method.startswith("jax") or method in ("official", "seqdiff_plus")
                 else "explicit NumPy noise for Torch; not cross-framework matched RNG",
                 numerical_verdict="not_certified; benchmark outputs do not prove full-state equivalence",
                 artifacts={p.name: sha(p) for p in folder.iterdir() if p.is_file() and p != marker},
@@ -610,12 +624,17 @@ def run(path, root, resume=False):
             for p in (ROOT / "src/cognitive_ultrasound" / sub).glob("*.py")
         }
         source["speedbench"] = sha(__file__)
+        if "seqdiff_plus" in cfg["methods"]:
+            source["seqdiff_plus"] = sha(Path(__file__).with_name("seqdiff_plus.py"))
         assets = {}
-        for label in ["checkpoint", "torch_export", "belief_checkpoint"]:
+        for label in ["checkpoint", "torch_export", "belief_checkpoint", "vivit_checkpoint"]:
             p = Path(cfg[label]) if cfg.get(label) else None
             if p and p.exists():
                 files = [p] if p.is_file() else [f for f in p.rglob("*") if f.is_file()]
                 assets[label] = {str(f): sha(f) for f in files}
+                if label == "vivit_checkpoint":
+                    receipt = p.parent / "complete.json"
+                    assets[label][str(receipt)] = sha(receipt)
         identity = dict(
             config=cfg,
             source=source,

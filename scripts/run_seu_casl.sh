@@ -7,7 +7,8 @@ root=${CASL_SEU_ROOT:-$HOME/casl}
 usage() {
     printf '%s\n' \
         'Usage:' \
-        '  bash scripts/run_seu_casl.sh submit data-prep|cpu-check|gpu-smoke|bf-smoke|bf-train [partition]' \
+        '  bash scripts/run_seu_casl.sh submit TASK [partition]' \
+        '  Tasks: data-prep cpu-check gpu-smoke bf-smoke bf-train seqdiff-smoke seqdiff-train accel-compare' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -33,11 +34,12 @@ case ${1:-help} in
                 resources=(--time=00:30:00 --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
                 ;;
-            bf-smoke|bf-train)
+            bf-smoke|bf-train|seqdiff-smoke|seqdiff-train|accel-compare)
                 partition=${3:-gpu-L20}
                 log_dir="$root/jobs/acceleration"
                 wall=00:20:00
-                if [[ $task == bf-train ]]; then wall=12:00:00; fi
+                if [[ $task == *-train ]]; then wall=12:00:00; fi
+                if [[ $task == accel-compare ]]; then wall=03:00:00; fi
                 resources=(--time="$wall" --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
                 ;;
@@ -56,7 +58,7 @@ case ${1:-help} in
         fi
         # Some GPU compute nodes have no Git. Record checkout revisions at submission.
         job_args=("$(git -C "$repo" rev-parse --verify HEAD)")
-        if [[ $task == gpu-smoke || $task == bf-* ]]; then
+        if [[ $task == gpu-smoke || $task == bf-* || $task == seqdiff-* || $task == accel-compare ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.
             if command -v module >/dev/null; then module load cuda-12.8; fi
             env_dir=${CASL_SEU_ENV:-$root/envs/casl}
@@ -90,7 +92,7 @@ case ${1:-help} in
             fi
             "$shared_git" --version
             job_args+=("$cudnn_dir" "$cuda_dir" "$shared_git")
-            if [[ $task == bf-* ]]; then
+            if [[ $task != gpu-smoke ]]; then
                 sinfo -h -p "$partition" -o '%P %a %l %G %t %D'
             fi
         elif [[ $task == cpu-check ]]; then

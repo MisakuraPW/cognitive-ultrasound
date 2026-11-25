@@ -82,6 +82,9 @@ class JaxEngine:
             ]
         )
 
+    def recover(self, obs, state):
+        return self.adapter.agent.recover(obs, state)
+
     def step(self, target, noise=None):
         import jax.numpy as jnp
         from ulsa.agent import hard_projection
@@ -95,7 +98,7 @@ class JaxEngine:
             obs = jnp.asarray(target * np.asarray(mask))
         self.jax.block_until_ready(obs)
         start = time.perf_counter()
-        raw, following = self.adapter.agent.recover(obs, state)
+        raw, following = self.recover(obs, state)
         prediction = hard_projection(raw, obs)
         self.jax.block_until_ready((prediction, following))
         core = time.perf_counter() - start
@@ -141,6 +144,49 @@ class JaxEngine:
         result["convolution_dtypes"] = actual
         self.probes = result
         return result
+
+
+class ViViTEngine(JaxEngine):
+    def __init__(self, cfg, profile, budget, export):
+        super().__init__(cfg, profile, budget, export)
+        from pathlib import Path
+
+        from ..preparation.common import read_json
+        from ..provenance import sha256
+        from ..seqdiff_plus import load_predictor
+
+        checkpoint = Path(cfg["vivit_checkpoint"])
+        receipt = read_json(checkpoint.parent / "complete.json")
+        if receipt["cpu_functional"] or receipt["checkpoint_sha256"] != sha256(checkpoint):
+            raise ValueError("Expected an intact GPU-trained ViViT checkpoint")
+        model = load_predictor(checkpoint)
+        self.predict = self.jax.jit(lambda history: model(history, training=False))
+
+    def reset(self, seed, initial=None):
+        super().reset(seed, initial)
+        self.history = ()
+
+    def capture(self):
+        return super().capture(), self.history
+
+    def reinstate(self, state):
+        agent, self.history = state
+        super().reinstate(agent)
+
+    def recover(self, obs, state):
+        from dataclasses import replace
+
+        import jax.numpy as jnp
+
+        # Use only saved past particles. Replace only the last warm-start channel,
+        # leaving the noisy schedule, two history channels and DPS unchanged.
+        if len(self.history) == 4:
+            transition = self.predict(jnp.stack(self.history, axis=1))
+            warm = state.posterior_samples.at[..., -1].set(transition[..., 0])
+            state = replace(state, posterior_samples=warm)
+        raw, following = super().recover(obs, state)
+        self.history = (*self.history[-3:], following.belief_distribution)
+        return raw, following
 
 
 class TorchEngine:

@@ -7,3 +7,11 @@
 脚本优先使用 `CASL_SEU_TORCH_PYTHON` 或 `~/casl/envs/fast-belief/bin/python`，再检查已有 CASL 环境是否有可用 CUDA Torch。计算节点必须通过真实 CUDA 矩阵乘法。学校 CUDA/cuDNN 和官方代码检查沿用原入口。
 
 Slurm 日志为 `~/casl/jobs/acceleration/casl-任务-作业号.log`。结果在 `~/casl/jobs/acceleration/任务-作业号/`，前馈联训权重在 `belief/filter/best.pt`，病例和帧级评估在 `benchmark/`。同时检查 Slurm 终态、退出码和 `SEU_ACCELERATION_OK`。
+
+## SeqDiff+ 与共同对照
+
+`seqdiff-smoke` 用 8 个训练视频、1 轮真实更新验证机制。`seqdiff-train` 配置为 512 个训练视频、12 轮，实际用量看短测。使用 CASL 固定训练集，不重训扩散。Stevens 等的论文与作者页未发现能直接复用的 ViViT 代码或预测器权重。实现保留 4 帧历史、2×16×16 tubelet、编解码各两层和 8 个注意力头，使用 112×112 极坐标图即 7×7 空间网格。宽度 128、残差输出、干净历史监督和优化细节属于本实现选择。推理使用各粒子的历史后验，训练用干净历史，两者存在分布差异。预测只替换暖启动的当前帧通道。首帧 500 步，历史不足四帧时仍用普通暖启动，随后与普通 SeqDiff 一起对照相同噪声区间内的 4 步 DPS。另跑官方 50 步暖启动。作者 25 倍以论文 100 步为分母。[论文](https://arxiv.org/abs/2409.05399) · [作者项目页](https://tristan-deep.github.io/publications/seqdiff/seqdiff_paper/)
+
+`accel-compare` 等两条正式训练都完成后使用。它从各自最新训练完成回执中校验模型哈希，不触发训练。用同一张卡、同 8 个病例与前 64 帧，统一对照官方、普通四步、ViViT 四步、前馈与插值。同观测比较固定相同 14 条等距方向，真实闭环各法自行选线，插值保留固定线。前馈另保留自己的同观测插值和长序列早晚误差诊断。各批次记录 GPU、同步核心、含传输的闭环和段落墙钟，另有逐帧极坐标 PSNR、SSIM、浮点 MAE 和实际线数。结果包为 `paired_results.tar.gz`，作业结束时写大小和 SHA-256。短测结果仅验收，既有 4090 结果保留作历史对照。
+
+后续加速作业在计算节点用提交回执的 Git 版本建立只读使用的独立代码工作树，复用已准备的数据、上游源码和权重，允许随后同步主工作区。学校队列与资格以提交时查询和调度器回执为准。
