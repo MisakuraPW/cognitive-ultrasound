@@ -7,7 +7,7 @@ root=${CASL_SEU_ROOT:-$HOME/casl}
 usage() {
     printf '%s\n' \
         'Usage:' \
-        '  bash scripts/run_seu_casl.sh submit data-prep|cpu-check|gpu-smoke [partition]' \
+        '  bash scripts/run_seu_casl.sh submit data-prep|cpu-check|gpu-smoke|bf-smoke|bf-train [partition]' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -33,6 +33,14 @@ case ${1:-help} in
                 resources=(--time=00:30:00 --nodes=1 --ntasks-per-node=1
                            --cpus-per-task=3 --gres=gpu:1)
                 ;;
+            bf-smoke|bf-train)
+                partition=${3:-gpu-L20}
+                log_dir="$root/jobs/acceleration"
+                wall=00:20:00
+                if [[ $task == bf-train ]]; then wall=12:00:00; fi
+                resources=(--time="$wall" --nodes=1 --ntasks-per-node=1
+                           --cpus-per-task=3 --gres=gpu:1)
+                ;;
             *) usage >&2; exit 2 ;;
         esac
 
@@ -48,7 +56,7 @@ case ${1:-help} in
         fi
         # Some GPU compute nodes have no Git. Record checkout revisions at submission.
         job_args=("$(git -C "$repo" rev-parse --verify HEAD)")
-        if [[ $task == gpu-smoke ]]; then
+        if [[ $task == gpu-smoke || $task == bf-* ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.
             if command -v module >/dev/null; then module load cuda-12.8; fi
             env_dir=${CASL_SEU_ENV:-$root/envs/casl}
@@ -82,6 +90,9 @@ case ${1:-help} in
             fi
             "$shared_git" --version
             job_args+=("$cudnn_dir" "$cuda_dir" "$shared_git")
+            if [[ $task == bf-* ]]; then
+                sinfo -h -p "$partition" -o '%P %a %l %G %t %D'
+            fi
         elif [[ $task == cpu-check ]]; then
             for dependency in vendor/casl vendor/casl/zea; do
                 job_args+=("$(git -C "$repo/$dependency" rev-parse --verify HEAD)")
@@ -104,7 +115,8 @@ case ${1:-help} in
         fi
         shopt -s nullglob
         logs=("$root/jobs/data-prep"/casl-*-"$job_id".log
-              "$root/jobs/acceptance"/casl-*-"$job_id".log)
+              "$root/jobs/acceptance"/casl-*-"$job_id".log
+              "$root/jobs/acceleration"/casl-*-"$job_id".log)
         if (( ${#logs[@]} == 1 )); then
             exec tail -n 50 -F -- "${logs[0]}"
         fi

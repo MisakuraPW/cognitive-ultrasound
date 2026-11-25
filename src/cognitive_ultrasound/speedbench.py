@@ -240,20 +240,26 @@ class BeliefEngine:
         from .fast_belief.model import ArrayOracle
 
         t = self.torch
+        tick = time.perf_counter()
         with t.no_grad():
+            oracle = ArrayOracle(t.from_numpy(target[..., 0].copy())[None, None].to(self.device))
+            t.cuda.synchronize()
+            start = time.perf_counter()
             self.memory, state = self.model.frame(
-                ArrayOracle(t.from_numpy(target[..., 0].copy())[None, None].to(self.device)),
+                oracle,
                 self.memory,
                 self.index,
                 policy=self.policy,
             )
         self.index += 1
         t.cuda.synchronize()
-        return {}, dict(
+        core = time.perf_counter() - start
+        arrays = dict(
             prediction=state["image"][0].permute(1, 2, 0).cpu().numpy(),
             mask=state["mask"][0].permute(1, 2, 0).cpu().numpy(),
             next_action=state["mask"][0, 0, 0].cpu().numpy(),
         )
+        return dict(core_s=core, closed_loop_s=time.perf_counter() - tick), arrays
 
     def peak(self):
         return self.torch.cuda.max_memory_allocated()
@@ -281,7 +287,7 @@ def build(cfg, method, root):
     cls = CoarseProfile if spec["kind"] == "casl_coarse" else Profile
     p = cls(**{k: v for k, v in spec["profile"].items() if k in fields})
     return (JaxEngine if p.backend == "jax" else TorchEngine)(
-        cfg, p, cfg["budget"], Path(cfg["torch_export"])
+        cfg, p, cfg["budget"], Path(cfg["torch_export"]) if cfg.get("torch_export") else None
     )
 
 
@@ -386,7 +392,7 @@ def worker(cfg, method, root):
 
                         def step():
                             if engine is not None:
-                                return engine.step(target, noise)[1]
+                                return engine.step(target, noise)
                             prediction = np.stack(
                                 [
                                     np.interp(np.arange(112), uniform, row[uniform, 0])
@@ -395,7 +401,7 @@ def worker(cfg, method, root):
                             )[..., None].astype("float32")
                             mask = np.zeros_like(target)
                             mask[:, uniform] = 1
-                            return dict(prediction=prediction, mask=mask, next_action=mask[0, :, 0])
+                            return {}, dict(prediction=prediction, mask=mask, next_action=mask[0, :, 0])
 
                         if index == 2 and engine is not None:
                             state = engine.capture()
@@ -413,7 +419,7 @@ def worker(cfg, method, root):
                             # Microbenchmark is diagnostic overhead, excluded from sequence timing.
                             tick = time.perf_counter() - io_seconds
                         t0 = time.perf_counter()
-                        arrays = step()
+                        measured, arrays = step()
                         wall = time.perf_counter() - t0
                         prediction, mask = arrays["prediction"], arrays["mask"]
                         score = measurements(target, prediction, mask)
@@ -422,7 +428,7 @@ def worker(cfg, method, root):
                         action = np.asarray(arrays["next_action"]).reshape(-1)
                         if action.shape != (112,):
                             raise ValueError("Unexpected action space")
-                        row = dict(frame=index, io_s=io_seconds, model_wall_s=wall, **score)
+                        row = dict(frame=index, io_s=io_seconds, model_wall_s=wall, **measured, **score)
                         row["temporal_error"] = (
                             None
                             if previous_prediction is None
@@ -506,6 +512,8 @@ def worker(cfg, method, root):
                     for k in ["mse", "psnr", "ssim", "mae", "unobserved_mae"]
                 },
                 observed_max_error=max(r["observed_max_error"] for r in rows),
+                early_unobserved_mae=float(np.mean([r["unobserved_mae"] for r in rows[:count // 2]])),
+                late_unobserved_mae=float(np.mean([r["unobserved_mae"] for r in rows[count // 2:]])),
                 rng_protocol="JAX-native same seed"
                 if method.startswith("jax") or method == "official"
                 else "explicit NumPy noise for Torch; not cross-framework matched RNG",
@@ -631,9 +639,11 @@ def run(path, root, resume=False):
                 raise ValueError("Split overlap")
             if len(names) < cfg["cases"]:
                 raise ValueError("Insufficient validation cases")
-            selected = (
-                np.random.default_rng(cfg["seed"]).permutation(names).tolist()[: cfg["cases"]]
-            )
+            selected = cfg.get("case_names")
+            if selected is None:
+                selected = np.random.default_rng(cfg["seed"]).permutation(names).tolist()[: cfg["cases"]]
+            elif len(selected) != cfg["cases"] or len(set(selected)) != len(selected) or not set(selected) <= set(names):
+                raise ValueError("Explicit benchmark cases must be distinct CASL validation cases")
             if any(Path(n).name != n or "/" in n or "\\" in n for n in selected):
                 raise ValueError("Invalid video filename")
             manifest = dict(

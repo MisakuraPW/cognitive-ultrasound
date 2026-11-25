@@ -124,6 +124,10 @@ def load_config(path):
         raise ValueError("Invalid thread candidates")
     if cfg["runtime"]["prefetch"] < 1 or cfg["evaluation"]["component_frames"] < 2:
         raise ValueError("Invalid prefetch/component frame limit")
+    if cfg.get("evaluation_split", "test") not in ("val", "test"):
+        raise ValueError("Invalid BF evaluation split")
+    if not cfg["file_list"] and cfg["evaluation"]["ef_enabled"]:
+        raise ValueError("EF evaluation requires the original EchoNet FileList.csv")
     return cfg
 
 
@@ -153,20 +157,27 @@ def prepare(cfg):
             raise ValueError("Split path must be a plain HDF5 filename")
         seen.update(names)
     original = {}
-    with open(cfg["file_list"], encoding="utf-8-sig", newline="") as f:
-        for row in csv.DictReader(f):
-            name = Path(row["FileName"]).stem
-            if name in original:
-                raise ValueError("Duplicate original patient")
-            original[name] = dict(split=row["Split"].lower(), ef=float(row["EF"]))
-            if not math.isfinite(original[name]["ef"]):
-                raise ValueError("Nonfinite EF label")
+    if cfg["file_list"]:
+        with open(cfg["file_list"], encoding="utf-8-sig", newline="") as f:
+            for row in csv.DictReader(f):
+                name = Path(row["FileName"]).stem
+                if name in original:
+                    raise ValueError("Duplicate original patient")
+                original[name] = dict(split=row["Split"].lower(), ef=float(row["EF"]))
+                if not math.isfinite(original[name]["ef"]):
+                    raise ValueError("Nonfinite EF label")
     rng = np.random.default_rng(cfg["seed"])
     cohorts, files = {}, {}
+    excluded = set(cfg.get("reserved_validation", []))
+    if not excluded <= set(raw["val"]):
+        raise ValueError("Reserved benchmark cases must belong to CASL validation")
     min_frames = max(x["frames"] for x in cfg["training"].values() if isinstance(x, dict))
-    for group, split in [("train", "train"), ("development", "val"), ("test", "test")]:
+    splits = [("train", "train"), ("development", "val"), ("test", cfg.get("evaluation_split", "test"))]
+    for group, split in splits:
         eligible = sorted(
-            n for n in raw[split] if original.get(Path(n).stem, {}).get("split") == split
+            n for n in raw[split]
+            if n not in files and n not in excluded
+            and (not cfg["file_list"] or original.get(Path(n).stem, {}).get("split") == split)
         )
         eligible = [eligible[i] for i in rng.permutation(len(eligible))]
         count = cfg["cohorts"][group]
@@ -186,7 +197,7 @@ def prepare(cfg):
                 frames = len(ds)
             normalize(pixels)
             files[name] = dict(
-                split=split, frames=frames, ef=original[Path(name).stem]["ef"], **fingerprint(path)
+                split=split, frames=frames, ef=original.get(Path(name).stem, {}).get("ef"), **fingerprint(path)
             )
             if i % 100 == 0:
                 print(
@@ -200,7 +211,8 @@ def prepare(cfg):
         files=files,
         root=str(root.resolve()),
         split_sha256=sha(cfg["split_manifest"]),
-        file_list_sha256=sha(cfg["file_list"]),
+        file_list_sha256=sha(cfg["file_list"]) if cfg["file_list"] else None,
+        split_policy="casl_and_echonet" if cfg["file_list"] else "casl_only",
         fingerprint_scope="size/mtime/head-tail hash, not full HDF5 checksum",
     )
 
