@@ -10,7 +10,7 @@ usage() {
         '  bash scripts/run_seu_casl.sh submit TASK [partition]' \
         '  Tasks: data-prep cpu-check gpu-smoke bf-env bf-smoke bf-train seqdiff-smoke seqdiff-train seqdiff-resume-JOB_ID accel-compare' \
         '         bf-core seqdiff-core bf-core-resume-JOB_ID seqdiff-core-resume-JOB_ID accel-core-test' \
-        '         bf-core-after-ENV_JOB_ID' \
+        '         bf-core-after-ENV_JOB_ID accel-core-test-after-BF_JOB_ID' \
         '  bash scripts/run_seu_casl.sh status JOB_ID' \
         '  bash scripts/run_seu_casl.sh logs JOB_ID' \
         'Defaults: 6126-24C-192G for CPU jobs, gpu-L20 for the one-GPU smoke test.'
@@ -21,24 +21,25 @@ case ${1:-help} in
         if (( $# < 2 || $# > 3 )); then usage >&2; exit 2; fi
         task=$2
         dependency=()
-        if [[ $task =~ ^bf-core-after-([1-9][0-9]*)$ ]]; then
-            env_job=${BASH_REMATCH[1]}
-            history=$(sacct -X -u "$(id -un)" -j "$env_job" -nP --format=JobIDRaw,JobName%32,State)
+        if [[ $task =~ ^(bf-core|accel-core-test)-after-([1-9][0-9]*)$ ]]; then
+            task=${BASH_REMATCH[1]}
+            parent_id=${BASH_REMATCH[2]}
+            if [[ $task == bf-core ]]; then parent_name=casl-bf-env; else parent_name=casl-bf-core; fi
+            history=$(sacct -X -u "$(id -un)" -j "$parent_id" -nP --format=JobIDRaw,JobName%32,State)
+            prefix="$parent_id|$parent_name|"
             case $history in
-                "$env_job|casl-bf-env|RUNNING"|"$env_job|casl-bf-env|PENDING"|\
-                "$env_job|casl-bf-env|CONFIGURING"|"$env_job|casl-bf-env|COMPLETING")
-                    dependency=(--dependency="afterok:$env_job" --kill-on-invalid-dep=yes)
-                    printf 'Wait for successful Torch environment job %s\n' "$env_job"
+                "${prefix}RUNNING"|"${prefix}PENDING"|"${prefix}CONFIGURING"|"${prefix}COMPLETING")
+                    dependency=(--dependency="afterok:$parent_id" --kill-on-invalid-dep=yes)
+                    printf 'Wait for successful %s job %s\n' "$parent_name" "$parent_id"
                     ;;
-                "$env_job|casl-bf-env|COMPLETED")
-                    printf 'Torch environment job %s already completed\n' "$env_job"
+                "${prefix}COMPLETED")
+                    printf '%s job %s already completed\n' "$parent_name" "$parent_id"
                     ;;
                 *)
-                    printf 'No active or successful Torch environment job %s owned by this account\n' "$env_job" >&2
+                    printf 'No active or successful %s job %s owned by this account\n' "$parent_name" "$parent_id" >&2
                     exit 2
                     ;;
             esac
-            task=bf-core
         fi
         log_dir="$root/jobs/acceptance"
         case $task in
@@ -110,11 +111,15 @@ case ${1:-help} in
             job_args[0]=$revision
         fi
         if [[ $task == accel-core-test ]]; then
-            compgen -G "$log_dir/bf-core-*/belief/complete.json" >/dev/null &&
-                compgen -G "$log_dir/seqdiff-core-*/vivit/complete.json" >/dev/null || {
-                    echo "Shared test needs successful bf-core and seqdiff-core training first" >&2
-                    exit 2
-                }
+            if ! compgen -G "$log_dir/seqdiff-core-*/vivit/complete.json" >/dev/null; then
+                echo "Shared test needs successful seqdiff-core training first" >&2
+                exit 2
+            fi
+            if (( ${#dependency[@]} == 0 )) &&
+                ! compgen -G "$log_dir/bf-core-*/belief/complete.json" >/dev/null; then
+                echo "Shared test needs successful bf-core training or an active bf-core dependency" >&2
+                exit 2
+            fi
         fi
         if [[ $task == gpu-smoke || ( $task == bf-* && $task != bf-env ) || $task == seqdiff-* || $task == accel-* ]]; then
             # Version lookup reads shared files only. Reject an unusable runtime before queuing.

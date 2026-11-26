@@ -39,6 +39,20 @@ from cognitive_ultrasound.fast_belief.runner import (
 REPO = Path(__file__).resolve().parents[1]
 
 
+def test_generated_school_json_preserves_scientific_notation(tmp_path):
+    original = load_config(REPO / "configs/fast_belief.yaml")
+    path = tmp_path / "training.json"
+    path.write_text(json.dumps(original), encoding="utf-8")
+    assert '1e-05' in path.read_text(encoding="utf-8")
+    cfg = load_config(path)
+    assert cfg["training"]["min_delta"] == 1e-5
+    assert 0.1 - cfg["training"]["min_delta"] == pytest.approx(0.09999)
+    original["training"]["min_delta"] = "1e-05"
+    path.write_text(json.dumps(original), encoding="utf-8")
+    with pytest.raises(ValueError, match="min_delta"):
+        load_config(path)
+
+
 @pytest.fixture
 def setup(tmp_path):
     configure(True, 1)

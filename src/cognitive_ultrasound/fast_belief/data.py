@@ -71,7 +71,10 @@ def digest(value):
 
 
 def load_config(path):
-    cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8-sig"))
+    path = Path(path)
+    cfg = read(path) if path.suffix.lower() == ".json" else yaml.safe_load(
+        path.read_text(encoding="utf-8-sig")
+    )
     if cfg["selection"]["groups"] != [10, 4]:
         raise ValueError(
             "This reproduction batch locks10+4; use a separate protocol for new budgets"
@@ -95,6 +98,9 @@ def load_config(path):
     for k in ["checkpoint_updates", "validate_every", "patience"]:
         if cfg["training"][k] < 1:
             raise ValueError(k)
+    min_delta = cfg["training"]["min_delta"]
+    if type(min_delta) not in (int, float) or not math.isfinite(min_delta) or min_delta < 0:
+        raise ValueError("training.min_delta must be a finite nonnegative number")
     if type(cfg["seed"]) is not int or cfg["seed"] < 0:
         raise ValueError("Invalid seed")
     for group, count in cfg["cohorts"].items():

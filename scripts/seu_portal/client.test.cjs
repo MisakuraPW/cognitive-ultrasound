@@ -145,7 +145,7 @@ test('the login-node launcher passes the submission revisions to the batch worke
     }
     fs.writeFileSync(path.join(shims,'git'),'#!/bin/bash\necho git-fixture\n',{mode:0o755});
     const launcher = path.resolve(__dirname,'..','run_seu_casl.sh').replaceAll('\\','/');
-    for (const task of ['gpu-smoke','cpu-check','bf-core-after-42','bf-core-after-43']) {
+    for (const task of ['gpu-smoke','cpu-check','bf-core-after-42','bf-core-after-43','accel-core-test-after-42']) {
       const script = [
         'export PATH="$PWD/shims:/usr/bin:/bin:$PATH" CASL_SEU_ROOT="$PWD/casl" CASL_SEU_ENV="$PWD/env"',
         'export CASL_SEU_CUDA_ROOT="$PWD/cuda"',
@@ -154,23 +154,25 @@ test('the login-node launcher passes the submission revisions to the batch worke
         'sinfo() { echo gpu-L20; }',
         'mkdir() { :; }',
         'id() { echo fixture-user; }',
-        'sacct() { case "$SEU_TEST_TASK" in *-42) echo "42|casl-bf-env|PENDING";; *-43) echo "43|casl-bf-env|FAILED";; esac; }',
+        'sacct() { case "$SEU_TEST_TASK" in bf-core-after-42) echo "42|casl-bf-env|PENDING";; bf-core-after-43) echo "43|casl-bf-env|FAILED";; accel-core-test-after-42) echo "42|casl-bf-core|RUNNING";; esac; }',
+        'compgen() { [[ $2 == */seqdiff-core-*/vivit/complete.json ]]; }',
         'source "$SEU_TEST_SUBMIT" submit "$SEU_TEST_TASK"',
       ].join('\n');
       const result = spawnSync(bash,['--noprofile','--norc'], {cwd:dir,input:script,encoding:'utf8',
         env:{...process.env,SEU_TEST_TASK:task,SEU_TEST_SUBMIT:launcher}});
       if (task.endsWith('-43')) {
         assert.equal(result.status,2,result.stderr);
-        assert.match(result.stderr,/No active or successful Torch environment job/);
+        assert.match(result.stderr,/No active or successful casl-bf-env job/);
         continue;
       }
       assert.equal(result.status,0,result.stderr);
       const lines = result.stdout.trim().split(/\r?\n/);
-      assert.ok(lines.includes(task.endsWith('-42') ? 'bf-core' : task));
+      const batchTask = task.replace(/-after-42$/, '');
+      assert.ok(lines.includes(batchTask));
       if (task.endsWith('-42')) {
         assert.ok(lines.includes('--dependency=afterok:42'));
         assert.ok(lines.includes('--kill-on-invalid-dep=yes'));
-        assert.ok(lines.includes('--job-name=casl-bf-core'));
+        assert.ok(lines.includes('--job-name=casl-' + batchTask));
       }
       if (task !== 'cpu-check') {
         assert.ok(lines.includes('--gres=gpu:1'));
